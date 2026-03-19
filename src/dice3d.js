@@ -20,7 +20,7 @@ let initialized = false;
 const GRAVITY = -50;
 const FLOOR_Y = 0;
 const WALL_DISTANCE = 5;
-const DIE_SIZE = 0.7;
+const DIE_SIZE = 1.0;
 const THROW_HEIGHT = 8;
 const SETTLE_THRESHOLD = 0.05;
 const SETTLE_FRAMES = 30;
@@ -264,32 +264,32 @@ function createFaceTexture(number, size = 256) {
   canvas.height = size;
   const ctx = canvas.getContext('2d');
 
-  // Die body color — medium charcoal (brighter for visibility)
-  ctx.fillStyle = '#2a2a30';
+  // Die face color — black
+  ctx.fillStyle = '#0f0f0f';
   ctx.fillRect(0, 0, size, size);
 
-  // Number
+  // Number — Alegreya SC, half the previous size
   const text = String(number);
-  const fontSize = text.length > 1 ? size * 0.36 : size * 0.48;
+  const fontSize = text.length > 1 ? size * 0.25 : size * 0.31;
   ctx.font = `bold ${fontSize}px "Alegreya SC", serif`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
 
-  // Outline for legibility
-  ctx.strokeStyle = '#444';
-  ctx.lineWidth = 3;
+  // Subtle dark outline for depth
+  ctx.strokeStyle = '#000000';
+  ctx.lineWidth = 2;
   ctx.strokeText(text, size / 2, size / 2);
 
-  // White number
-  ctx.fillStyle = '#e0ddd8';
+  // Pure white number for contrast
+  ctx.fillStyle = '#ffffff';
   ctx.fillText(text, size / 2, size / 2);
 
   // Underline for 6 and 9
   if (text === '6' || text === '9') {
     const metrics = ctx.measureText(text);
-    const underlineY = size / 2 + fontSize * 0.38;
-    ctx.strokeStyle = '#e0ddd8';
-    ctx.lineWidth = 3;
+    const underlineY = size / 2 + fontSize * 0.36;
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.moveTo(size / 2 - metrics.width / 2, underlineY);
     ctx.lineTo(size / 2 + metrics.width / 2, underlineY);
@@ -297,16 +297,18 @@ function createFaceTexture(number, size = 256) {
   }
 
   const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
   texture.needsUpdate = true;
   return texture;
 }
 
 // ── Edge body material (for chamfer faces) ────────────────
 function createEdgeMaterial() {
-  return new THREE.MeshStandardMaterial({
-    color: 0x333338,
-    roughness: 0.35,
-    metalness: 0.2,
+  return new THREE.MeshPhongMaterial({
+    color: 0x111111,
+    specular: 0x222222,
+    shininess: 60,
+    flatShading: true,
   });
 }
 
@@ -326,10 +328,11 @@ function createDieMesh(type) {
   for (let i = 0; i < numFaces; i++) {
     const number = i + 1;
     const texture = createFaceTexture(number);
-    materials.push(new THREE.MeshStandardMaterial({
+    materials.push(new THREE.MeshPhongMaterial({
       map: texture,
-      roughness: 0.45,
-      metalness: 0.1,
+      specular: 0x222222,
+      shininess: 60,
+      flatShading: true,
     }));
   }
 
@@ -343,7 +346,7 @@ function createDieMesh(type) {
 // ═══════════════════════════════════════════════════════════
 // PHYSICS — ConvexPolyhedron shapes from raw geometry data
 // ═══════════════════════════════════════════════════════════
-function createDieBody(type, mass = 1) {
+function createDieBody(type) {
   const geomData = DICE_GEOM[type];
   const rawVerts = geomData.vertices;
   const rawFaces = geomData.faces;
@@ -355,16 +358,16 @@ function createDieBody(type, mass = 1) {
   });
 
   // Build Cannon faces (strip the material index from each face)
-  const cannonFaces = rawFaces.map(f => f.slice(0, f.length - 1));
+  const cannonFaces = rawFaces.map(f => f.slice(0, -1));
 
   const shape = new CANNON.ConvexPolyhedron({ vertices: cannonVerts, faces: cannonFaces });
 
   const body = new CANNON.Body({
-    mass,
+    mass: 300,
     shape,
     material: new CANNON.Material({ friction: 0.5, restitution: 0.5 }),
-    linearDamping: 0.25,
-    angularDamping: 0.25,
+    linearDamping: 0.3,
+    angularDamping: 0.3,
   });
 
   body.allowSleep = true;
@@ -385,48 +388,78 @@ export function initScene(canvasEl) {
   renderer = new THREE.WebGLRenderer({ canvas: canvasEl, antialias: true, alpha: false });
   renderer.setSize(width, height);
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-  renderer.setClearColor(0x0e0e10);
+  renderer.setClearColor(0x0a0a12);
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
 
   scene = new THREE.Scene();
-  scene.fog = new THREE.Fog(0x0e0e10, 8, 25);
+  scene.fog = new THREE.Fog(0x0a0a12, 10, 30);
 
   camera = new THREE.PerspectiveCamera(40, width / height, 0.1, 100);
   camera.position.set(0, 12, 6);
   camera.lookAt(0, 0, 0);
 
-  // Lighting — bright enough to see die faces clearly
-  scene.add(new THREE.AmbientLight(0xaaaaaa, 1.2));
+  // Lighting — strong top-down with neutral ambient for black dice
+  scene.add(new THREE.AmbientLight(0x888888, 1.2));
 
-  const spotLight = new THREE.SpotLight(0xffffff, 2);
-  spotLight.position.set(-3, 15, 5);
-  spotLight.angle = Math.PI / 4;
-  spotLight.penumbra = 0.5;
-  spotLight.castShadow = true;
-  spotLight.shadow.mapSize.set(1024, 1024);
-  spotLight.shadow.camera.near = 1;
-  spotLight.shadow.camera.far = 30;
-  scene.add(spotLight);
-  scene.add(spotLight.target);
+  const mainLight = new THREE.DirectionalLight(0xffffff, 1.8);
+  mainLight.position.set(0, 15, 5);
+  mainLight.castShadow = true;
+  mainLight.shadow.mapSize.set(1024, 1024);
+  mainLight.shadow.camera.near = 0.5;
+  mainLight.shadow.camera.far = 30;
+  mainLight.shadow.camera.left = -8;
+  mainLight.shadow.camera.right = 8;
+  mainLight.shadow.camera.top = 8;
+  mainLight.shadow.camera.bottom = -8;
+  scene.add(mainLight);
 
-  const fillLight = new THREE.DirectionalLight(0xffffff, 0.8);
-  fillLight.position.set(5, 8, -3);
+  const fillLight = new THREE.DirectionalLight(0xaaaaaa, 0.6);
+  fillLight.position.set(-5, 8, -3);
   scene.add(fillLight);
 
-  const fillLight2 = new THREE.DirectionalLight(0xcccccc, 0.5);
-  fillLight2.position.set(-5, 6, 4);
+  const fillLight2 = new THREE.DirectionalLight(0x999999, 0.4);
+  fillLight2.position.set(5, 6, 4);
   scene.add(fillLight2);
 
-  // Floor
+  // Floor — textured mat with bg.jpg + centered logo.png
+  const textureLoader = new THREE.TextureLoader();
+  const bgTexture = textureLoader.load('/bg.jpg');
+  bgTexture.colorSpace = THREE.SRGBColorSpace;
+  bgTexture.wrapS = THREE.RepeatWrapping;
+  bgTexture.wrapT = THREE.RepeatWrapping;
+  bgTexture.repeat.set(2, 2);
+
+  const logoTexture = textureLoader.load('/logo.png');
+  logoTexture.colorSpace = THREE.SRGBColorSpace;
+
+  // Create the mat: bg.jpg base layer
   const floor = new THREE.Mesh(
     new THREE.PlaneGeometry(20, 20),
-    new THREE.MeshStandardMaterial({ color: 0x151518, roughness: 0.9, metalness: 0 }),
+    new THREE.MeshStandardMaterial({ map: bgTexture, roughness: 0.85, metalness: 0 }),
   );
   floor.rotation.x = -Math.PI / 2;
   floor.position.y = FLOOR_Y;
   floor.receiveShadow = true;
   scene.add(floor);
+
+  // Logo overlay — slightly above the floor to avoid z-fighting
+  const logoPlane = new THREE.Mesh(
+    new THREE.PlaneGeometry(5, 5),
+    new THREE.MeshStandardMaterial({
+      map: logoTexture,
+      transparent: true,
+      opacity: 0.15,
+      roughness: 0.9,
+      metalness: 0,
+      depthWrite: false,
+    }),
+  );
+  logoPlane.rotation.x = -Math.PI / 2;
+  logoPlane.position.y = FLOOR_Y + 0.001;
+  logoPlane.receiveShadow = false;
+  scene.add(logoPlane);
 
   // Physics world — higher restitution for more bounce
   world = new CANNON.World();

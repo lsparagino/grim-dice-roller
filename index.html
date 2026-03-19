@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Grim Dice Roller — Dark Tactical RPG Companion</title>
+    <meta name="description" content="A 3D dice roller companion app for Grim: Dark Tactical RPG. Roll d4, d6, d8, d10, d12, d20 with animated 3D dice and track your roll history." />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Alegreya+SC:wght@400;700;800&family=Alegreya:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet" />
+  </head>
+  <body class="min-h-screen bg-grim-black text-grim-white overflow-x-hidden">
+
+    <!-- Noise texture overlay -->
+    <div id="noise-overlay" class="fixed inset-0 pointer-events-none z-50 opacity-[0.04]"></div>
+
+    <div id="app" class="relative z-10 min-h-screen flex flex-col">
+
+      <!-- Header -->
+      <header class="py-4 px-4 text-center border-b border-grim-border/30">
+        <h1 class="font-heading text-3xl sm:text-4xl tracking-wider text-grim-white uppercase">
+          Grim <span class="text-grim-highlight">Dice</span> Roller
+        </h1>
+        <p class="font-body text-xs sm:text-sm text-grim-muted mt-1 italic">Dark Tactical RPG Companion</p>
+      </header>
+
+      <!-- Main Content -->
+      <main class="flex-1 flex flex-col max-w-5xl mx-auto w-full px-4 py-6 gap-6">
+
+        <!-- Dice Selector Section -->
+        <section id="dice-selector" aria-label="Dice Selection">
+          <h2 class="font-heading text-lg uppercase tracking-widest text-grim-muted mb-4 text-center">Choose Your Dice</h2>
+          <div id="dice-grid" class="grid grid-cols-3 sm:grid-cols-6 gap-3"></div>
+        </section>
+
+        <!-- Roll Button -->
+        <div class="flex justify-center">
+          <button
+            id="roll-btn"
+            disabled
+            class="font-heading text-xl uppercase tracking-widest px-10 py-3 bg-grim-border text-grim-white rounded
+                   disabled:opacity-30 disabled:cursor-not-allowed disabled:shadow-none
+                   hover:bg-grim-highlight/20 active:scale-95
+                   shadow-[0_0_15px_rgba(200,200,200,0.1)] hover:shadow-[0_0_25px_rgba(200,200,200,0.15)]
+                   transition-all duration-200 cursor-pointer"
+          >
+            Roll Dice
+          </button>
+        </div>
+
+        <!-- 3D Canvas / Results Area -->
+        <section id="results-area" class="relative min-h-[200px] sm:min-h-[300px] hidden">
+          <!-- 3D canvas is injected here by dice3d.js -->
+          <canvas id="dice-canvas" class="w-full rounded-lg border border-grim-border/20 bg-grim-surface hidden"></canvas>
+
+          <!-- Totals-only results (>10 dice) -->
+          <div id="totals-only" class="hidden">
+            <div id="totals-grid" class="grid grid-cols-2 sm:grid-cols-3 gap-3"></div>
+          </div>
+
+          <!-- Totals summary (always shown after roll) -->
+          <div id="totals-summary" class="mt-4 p-4 rounded-lg bg-grim-surface border border-grim-border/30 hidden">
+            <div id="per-type-totals" class="flex flex-wrap gap-3 justify-center mb-3"></div>
+            <div class="text-center border-t border-grim-border/20 pt-3">
+              <span class="font-heading text-sm uppercase tracking-widest text-grim-muted">Grand Total</span>
+              <span id="grand-total" class="block font-heading text-4xl text-grim-white mt-1">0</span>
+            </div>
+          </div>
+        </section>
+
+        <!-- Roll History -->
+        <section id="history-section" class="mt-auto">
+          <div class="flex items-center justify-between mb-3">
+            <h2 class="font-heading text-lg uppercase tracking-widest text-grim-muted">Roll History</h2>
+            <button id="clear-history-btn" class="font-body text-xs text-grim-muted hover:text-grim-white transition-colors cursor-pointer hidden">
+              Clear
+            </button>
+          </div>
+          <div id="history-list" class="space-y-2">
+            <p id="history-empty" class="font-body text-sm text-grim-muted/50 text-center italic py-4">No rolls yet. Choose your dice and roll!</p>
+          </div>
+        </section>
+
+      </main>
+
+      <!-- Footer -->
+      <footer class="py-3 text-center border-t border-grim-border/30">
+        <p class="font-body text-xs text-grim-muted/40">
+          Companion app for <a href="https://www.grim-rpg.com" target="_blank" rel="noopener" class="text-grim-muted hover:text-grim-white transition-colors underline">Grim: Dark Tactical RPG</a>
+        </p>
+      </footer>
+
+    </div>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

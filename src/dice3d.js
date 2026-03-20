@@ -19,12 +19,14 @@ let initialized = false;
 // ── Constants ─────────────────────────────────────────────
 const GRAVITY = -50;
 const FLOOR_Y = 0;
-const WALL_DISTANCE = 5;
-const DIE_SIZE = 1.0;
+const WALL_DISTANCE = 4.5;
+const DIE_SIZE = 0.8;
 const THROW_HEIGHT = 8;
 const SETTLE_THRESHOLD = 0.05;
 const SETTLE_FRAMES = 30;
-const CHAMFER = 0.96; // Edge chamfer factor (1 = no chamfer, 0.9 = heavy)
+const CHAMFER = 0.92; // Edge chamfer factor (1 = no chamfer, 0.9 = heavy)
+const MAT_RADIUS = 5; // Hexagonal mat outer radius
+const BORDER_HEIGHT = 1.8; // Raised border height (~d20 height)
 
 // ═══════════════════════════════════════════════════════════
 // GEOMETRY DATA — vertices + faces for each die type
@@ -257,6 +259,19 @@ function buildDieGeometry(type, radius) {
   return geo;
 }
 
+// ── Shared bg.jpg texture for dice faces (loaded once) ────
+let bgTextureForDice = null;
+function getDiceBgTexture() {
+  if (!bgTextureForDice) {
+    const loader = new THREE.TextureLoader();
+    bgTextureForDice = loader.load('/bg.jpg');
+    bgTextureForDice.colorSpace = THREE.SRGBColorSpace;
+    bgTextureForDice.wrapS = THREE.RepeatWrapping;
+    bgTextureForDice.wrapT = THREE.RepeatWrapping;
+  }
+  return bgTextureForDice;
+}
+
 // ── Create numbered canvas texture for a face ─────────────
 function createFaceTexture(number, size = 256) {
   const canvas = document.createElement('canvas');
@@ -268,7 +283,7 @@ function createFaceTexture(number, size = 256) {
   ctx.fillStyle = '#0f0f0f';
   ctx.fillRect(0, 0, size, size);
 
-  // Number — Alegreya SC, half the previous size
+  // Number — Alegreya SC
   const text = String(number);
   const fontSize = text.length > 1 ? size * 0.25 : size * 0.31;
   ctx.font = `bold ${fontSize}px "Alegreya SC", serif`;
@@ -304,11 +319,13 @@ function createFaceTexture(number, size = 256) {
 
 // ── Edge body material (for chamfer faces) ────────────────
 function createEdgeMaterial() {
+  const bgTex = getDiceBgTexture();
   return new THREE.MeshPhongMaterial({
     color: 0x111111,
     specular: 0x222222,
     shininess: 60,
     flatShading: true,
+    specularMap: bgTex,
   });
 }
 
@@ -328,9 +345,11 @@ function createDieMesh(type) {
   for (let i = 0; i < numFaces; i++) {
     const number = i + 1;
     const texture = createFaceTexture(number);
+    const bgTex = getDiceBgTexture();
     materials.push(new THREE.MeshPhongMaterial({
       map: texture,
-      specular: 0x222222,
+      specular: 0x333333,
+      specularMap: bgTex,
       shininess: 60,
       flatShading: true,
     }));
@@ -363,11 +382,11 @@ function createDieBody(type) {
   const shape = new CANNON.ConvexPolyhedron({ vertices: cannonVerts, faces: cannonFaces });
 
   const body = new CANNON.Body({
-    mass: 300,
+    mass: 1,
     shape,
     material: new CANNON.Material({ friction: 0.5, restitution: 0.5 }),
-    linearDamping: 0.3,
-    angularDamping: 0.3,
+    linearDamping: 0.25,
+    angularDamping: 0.25,
   });
 
   body.allowSleep = true;
@@ -423,34 +442,39 @@ export function initScene(canvasEl) {
   fillLight2.position.set(5, 6, 4);
   scene.add(fillLight2);
 
-  // Floor — textured mat with bg.jpg + centered logo.png
-  const textureLoader = new THREE.TextureLoader();
-  const bgTexture = textureLoader.load('/bg.jpg');
-  bgTexture.colorSpace = THREE.SRGBColorSpace;
-  bgTexture.wrapS = THREE.RepeatWrapping;
-  bgTexture.wrapT = THREE.RepeatWrapping;
-  bgTexture.repeat.set(2, 2);
+  // ── Hexagonal mat ──────────────────────────────────────
+  const hexPoints = [];
+  for (let i = 0; i < 6; i++) {
+    const angle = (Math.PI / 3) * i - Math.PI / 6; // flat-top hexagon
+    hexPoints.push(new THREE.Vector2(Math.cos(angle) * MAT_RADIUS, Math.sin(angle) * MAT_RADIUS));
+  }
+  const hexShape = new THREE.Shape(hexPoints);
 
+  // Mat surface — glossy black
+  const matSurface = new THREE.Mesh(
+    new THREE.ShapeGeometry(hexShape),
+    new THREE.MeshPhongMaterial({
+      color: 0x080808,
+      specular: 0x444444,
+      shininess: 90,
+    }),
+  );
+  matSurface.rotation.x = -Math.PI / 2;
+  matSurface.position.y = FLOOR_Y;
+  matSurface.receiveShadow = true;
+  scene.add(matSurface);
+
+  // Logo overlay centered on the mat
+  const textureLoader = new THREE.TextureLoader();
   const logoTexture = textureLoader.load('/logo.png');
   logoTexture.colorSpace = THREE.SRGBColorSpace;
 
-  // Create the mat: bg.jpg base layer
-  const floor = new THREE.Mesh(
-    new THREE.PlaneGeometry(20, 20),
-    new THREE.MeshStandardMaterial({ map: bgTexture, roughness: 0.85, metalness: 0 }),
-  );
-  floor.rotation.x = -Math.PI / 2;
-  floor.position.y = FLOOR_Y;
-  floor.receiveShadow = true;
-  scene.add(floor);
-
-  // Logo overlay — slightly above the floor to avoid z-fighting
   const logoPlane = new THREE.Mesh(
-    new THREE.PlaneGeometry(5, 5),
+    new THREE.PlaneGeometry(4, 4),
     new THREE.MeshStandardMaterial({
       map: logoTexture,
       transparent: true,
-      opacity: 0.15,
+      opacity: 0.12,
       roughness: 0.9,
       metalness: 0,
       depthWrite: false,
@@ -461,7 +485,44 @@ export function initScene(canvasEl) {
   logoPlane.receiveShadow = false;
   scene.add(logoPlane);
 
-  // Physics world — higher restitution for more bounce
+  // Raised border — extruded hexagon ring
+  const innerRadius = MAT_RADIUS - 0.15;
+  const innerHexPoints = [];
+  for (let i = 0; i < 6; i++) {
+    const angle = (Math.PI / 3) * i - Math.PI / 6;
+    innerHexPoints.push(new THREE.Vector2(Math.cos(angle) * innerRadius, Math.sin(angle) * innerRadius));
+  }
+  const borderShape = new THREE.Shape(hexPoints);
+  borderShape.holes.push(new THREE.Path(innerHexPoints));
+
+  const borderGeom = new THREE.ExtrudeGeometry(borderShape, {
+    depth: BORDER_HEIGHT,
+    bevelEnabled: false,
+  });
+  const borderMesh = new THREE.Mesh(
+    borderGeom,
+    new THREE.MeshPhongMaterial({
+      color: 0x0a0a0a,
+      specular: 0x333333,
+      shininess: 70,
+    }),
+  );
+  borderMesh.rotation.x = -Math.PI / 2;
+  borderMesh.position.y = FLOOR_Y;
+  borderMesh.castShadow = true;
+  borderMesh.receiveShadow = true;
+  scene.add(borderMesh);
+
+  // Dark plane under the mat for the area outside the hexagon
+  const bgPlane = new THREE.Mesh(
+    new THREE.PlaneGeometry(30, 30),
+    new THREE.MeshPhongMaterial({ color: 0x050508 }),
+  );
+  bgPlane.rotation.x = -Math.PI / 2;
+  bgPlane.position.y = FLOOR_Y - 0.01;
+  scene.add(bgPlane);
+
+  // ── Physics world ──────────────────────────────────────
   world = new CANNON.World();
   world.gravity.set(0, GRAVITY, 0);
   world.broadphase = new CANNON.NaiveBroadphase();
@@ -478,19 +539,29 @@ export function initScene(canvasEl) {
   floorBody.position.set(0, FLOOR_Y, 0);
   world.addBody(floorBody);
 
-  // Walls
-  const addWall = (pos, axisAngle) => {
-    const wall = new CANNON.Body({ mass: 0, shape: new CANNON.Plane(), material: wallMat });
-    if (axisAngle) wall.quaternion.setFromAxisAngle(new CANNON.Vec3(...axisAngle[0]), axisAngle[1]);
-    wall.position.set(...pos);
-    world.addBody(wall);
-  };
-  addWall([0, 0, -WALL_DISTANCE], null); // Back (plane faces +Z by default)
-  addWall([0, 0, WALL_DISTANCE], [[0,1,0], Math.PI]);
-  addWall([-WALL_DISTANCE, 0, 0], [[0,1,0], Math.PI / 2]);
-  addWall([WALL_DISTANCE, 0, 0], [[0,1,0], -Math.PI / 2]);
+  // Hexagonal border walls — 6 wall planes at edge midpoints facing inward
+  for (let i = 0; i < 6; i++) {
+    // Edge normal direction (outward from center to edge midpoint)
+    const edgeAngle = (Math.PI / 3) * i;
 
-  // Contact materials — dice vs floor and dice vs dice
+    // Distance from center to edge midpoint (apothem) for a hexagon with vertex radius R
+    const apothem = innerRadius * Math.cos(Math.PI / 6);
+
+    // Position wall at the edge midpoint
+    const wx = Math.cos(edgeAngle) * apothem;
+    const wz = Math.sin(edgeAngle) * apothem;
+
+    const wallBody = new CANNON.Body({ mass: 0, shape: new CANNON.Plane(), material: wallMat });
+    // CANNON.Plane default normal is +Z (0,0,1).
+    // Rotating around Y by θ gives normal = (sin(θ), 0, cos(θ)).
+    // We want inward normal = (-cos(edgeAngle), 0, -sin(edgeAngle))
+    // => θ = -(edgeAngle + π/2)
+    wallBody.quaternion.setFromAxisAngle(new CANNON.Vec3(0, 1, 0), -(edgeAngle + Math.PI / 2));
+    wallBody.position.set(wx, BORDER_HEIGHT / 2, wz);
+    world.addBody(wallBody);
+  }
+
+  // Contact materials
   world.addContactMaterial(new CANNON.ContactMaterial(floorMat, diceMat, { friction: 0.5, restitution: 0.5 }));
   world.addContactMaterial(new CANNON.ContactMaterial(diceMat, diceMat, { friction: 0.4, restitution: 0.4 }));
   world.addContactMaterial(new CANNON.ContactMaterial(wallMat, diceMat, { friction: 0.2, restitution: 0.7 }));
@@ -571,9 +642,9 @@ export function rollDice3D(diceList, onComplete) {
     const mesh = createDieMesh(die.type);
     const body = createDieBody(die.type);
 
-    // Spread starting positions
-    const sx = (Math.random() - 0.5) * 4;
-    const sz = (Math.random() - 0.5) * 4;
+    // Spread starting positions across the hex mat
+    const sx = (Math.random() - 0.5) * 5;
+    const sz = (Math.random() - 0.5) * 5;
     const sy = THROW_HEIGHT + Math.random() * 3;
     body.position.set(sx, sy, sz);
 

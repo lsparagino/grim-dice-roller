@@ -4,7 +4,15 @@
 import * as THREE from 'three';
 import * as CANNON from 'cannon-es';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { DEBUG, GRAVITY, FLOOR_Y, MAT_RADIUS, BORDER_HEIGHT, MAT_REFLECTIVITY } from './dice-constants.js';
+import { Reflector } from 'three/addons/objects/Reflector.js';
+import {
+  DEBUG, GRAVITY, FLOOR_Y, MAT_RADIUS, BORDER_HEIGHT, MAT_REFLECTIVITY,
+  MAT_ROUGHNESS, MAT_METALNESS, MAT_COLOR,
+  CAMERA_POS, SCORE_ORBIT_SPEED,
+  ORBIT_LIGHT_COUNT, ORBIT_LIGHT_SPEED, ORBIT_LIGHT_INTENSITY, ORBIT_LIGHT_HEIGHT, ORBIT_LIGHT_COLOR, ORBIT_LIGHT_DISTANCE,
+  AMBIENT_INTENSITY, MAIN_LIGHT_INTENSITY, MAIN_LIGHT_COLOR, MAIN_LIGHT_POS,
+  FILL_LIGHT_1_INTENSITY, FILL_LIGHT_2_INTENSITY,
+} from './dice-constants.js';
 
 // ── Module state ──────────────────────────────────────────
 let renderer = null;
@@ -12,12 +20,59 @@ let scene = null;
 let camera = null;
 let world = null;
 let controls = null;
+let orbitLights = []; // Array of {light, angle, speed, radius, height}
+let scoreOrbiting = false; // Whether the camera is auto-orbiting for score view
+let scoreOrbitAngle = 0; // Current orbit angle
 
 export function getRenderer() { return renderer; }
 export function getScene() { return scene; }
 export function getCamera() { return camera; }
 export function getWorld() { return world; }
 export function getControls() { return controls; }
+
+// Score orbit — slow counterclockwise camera rotation when score is shown
+export function setScoreOrbit(active) {
+  scoreOrbiting = active;
+  if (active) {
+    // Calculate initial angle from current camera position
+    scoreOrbitAngle = Math.atan2(camera.position.z, camera.position.x);
+  }
+}
+export function updateScoreOrbit(dt) {
+  if (!scoreOrbiting || !camera) return;
+  const radius = Math.sqrt(CAMERA_POS[0] ** 2 + CAMERA_POS[2] ** 2);
+  const height = CAMERA_POS[1];
+  scoreOrbitAngle += SCORE_ORBIT_SPEED * dt; // counterclockwise
+  camera.position.x = Math.cos(scoreOrbitAngle) * radius;
+  camera.position.z = Math.sin(scoreOrbitAngle) * radius;
+  camera.position.y = height;
+  camera.lookAt(0, 0, 0);
+}
+
+// Update all orbiting lights each frame
+export function updateOrbitLight(dt) {
+  for (const ol of orbitLights) {
+    ol.angle -= ol.speed * dt;
+    // Orbit on a tilted plane: compute position in local XZ, then rotate by tilt
+    const x = Math.cos(ol.angle) * ol.radius;
+    const z = Math.sin(ol.angle) * ol.radius;
+    // Apply tilt rotation around the Y-rotated axis
+    const cosTilt = Math.cos(ol.tilt);
+    const sinTilt = Math.sin(ol.tilt);
+    const cosAxis = Math.cos(ol.tiltAxis);
+    const sinAxis = Math.sin(ol.tiltAxis);
+    // Rotate (x, 0, z) around a horizontal axis defined by tiltAxis
+    const localX = x * cosAxis - z * sinAxis;
+    const localZ = x * sinAxis + z * cosAxis;
+    const finalX = localX;
+    const finalY = localZ * sinTilt;
+    const finalZ = localZ * cosTilt;
+    // Rotate back
+    ol.light.position.x = finalX * cosAxis + finalZ * sinAxis;
+    ol.light.position.y = FLOOR_Y + ol.height + finalY;
+    ol.light.position.z = -finalX * sinAxis + finalZ * cosAxis;
+  }
+}
 
 // ── Scene initialization ──────────────────────────────────
 export function initScene(canvasEl) {
@@ -36,8 +91,10 @@ export function initScene(canvasEl) {
   scene = new THREE.Scene();
 
   camera = new THREE.PerspectiveCamera(40, width / height, 0.1, 100);
-  camera.position.set(0, 12, 6);
+  camera.position.set(...CAMERA_POS);
   camera.lookAt(0, 0, 0);
+  camera.layers.enable(1); // See orbit PointLights (layer 1)
+  camera.layers.enable(2); // See light helper spheres (layer 2)
 
   // ── OrbitControls — mouse zoom/rotate/pan (DEBUG only) ───
   if (DEBUG) {
@@ -50,11 +107,11 @@ export function initScene(canvasEl) {
     controls.maxPolarAngle = Math.PI / 2 - 0.05;
   }
 
-  // ── Lighting — a bit brighter ────────────────────────────
-  scene.add(new THREE.AmbientLight(0x888888, 1.6));
+  // ── Lighting ────────────────────────────────────────────────
+  scene.add(new THREE.AmbientLight(0x888888, AMBIENT_INTENSITY));
 
-  const mainLight = new THREE.DirectionalLight(0xffffff, 2.2);
-  mainLight.position.set(0, 15, 5);
+  const mainLight = new THREE.DirectionalLight(MAIN_LIGHT_COLOR, MAIN_LIGHT_INTENSITY);
+  mainLight.position.set(...MAIN_LIGHT_POS);
   mainLight.castShadow = true;
   mainLight.shadow.mapSize.set(1024, 1024);
   mainLight.shadow.camera.near = 0.5;
@@ -65,11 +122,11 @@ export function initScene(canvasEl) {
   mainLight.shadow.camera.bottom = -8;
   scene.add(mainLight);
 
-  const fillLight = new THREE.DirectionalLight(0xaaaaaa, 0.8);
+  const fillLight = new THREE.DirectionalLight(0xaaaaaa, FILL_LIGHT_1_INTENSITY);
   fillLight.position.set(-5, 8, -3);
   scene.add(fillLight);
 
-  const fillLight2 = new THREE.DirectionalLight(0x999999, 0.6);
+  const fillLight2 = new THREE.DirectionalLight(0x999999, FILL_LIGHT_2_INTENSITY);
   fillLight2.position.set(5, 6, 4);
   scene.add(fillLight2);
 
@@ -122,21 +179,70 @@ export function initScene(canvasEl) {
   }
   const hexShape = new THREE.Shape(hexPoints);
 
-  // Mat surface — very dark with reflections of the starry sky
-  const matSurface = new THREE.Mesh(
+  // Dark base surface underneath — completely unlit, just provides MAT_COLOR
+  // The Reflector on top handles all visual interest (reflections)
+  const baseMatSurface = new THREE.Mesh(
     new THREE.ShapeGeometry(hexShape),
-    new THREE.MeshStandardMaterial({
-      color: 0x020202,
-      roughness: 1 - MAT_REFLECTIVITY,
-      metalness: 0.6,
-      envMap,
-      envMapIntensity: MAT_REFLECTIVITY * 6,
-    }),
+    new THREE.MeshBasicMaterial({ color: MAT_COLOR }),
   );
-  matSurface.rotation.x = -Math.PI / 2;
-  matSurface.position.y = FLOOR_Y;
-  matSurface.receiveShadow = true;
-  scene.add(matSurface);
+  baseMatSurface.rotation.x = -Math.PI / 2;
+  baseMatSurface.position.y = FLOOR_Y - 0.001;
+  baseMatSurface.receiveShadow = true;
+  scene.add(baseMatSurface);
+
+  // Reflector surface — real-time mirror reflection of dice/scene
+  // Uses a custom shader with opacity support for MAT_REFLECTIVITY control
+  const reflectorGeom = new THREE.ShapeGeometry(hexShape);
+  const customReflectorShader = {
+    name: 'ReflectorShaderOpacity',
+    uniforms: {
+      color: { value: null },
+      tDiffuse: { value: null },
+      textureMatrix: { value: null },
+      reflectOpacity: { value: MAT_REFLECTIVITY },
+    },
+    vertexShader: /* glsl */`
+      uniform mat4 textureMatrix;
+      varying vec4 vUv;
+      #include <common>
+      #include <logdepthbuf_pars_vertex>
+      void main() {
+        vUv = textureMatrix * vec4( position, 1.0 );
+        gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
+        #include <logdepthbuf_vertex>
+      }`,
+    fragmentShader: /* glsl */`
+      uniform vec3 color;
+      uniform sampler2D tDiffuse;
+      uniform float reflectOpacity;
+      varying vec4 vUv;
+      #include <logdepthbuf_pars_fragment>
+      float blendOverlay( float base, float blend ) {
+        return( base < 0.5 ? ( 2.0 * base * blend ) : ( 1.0 - 2.0 * ( 1.0 - base ) * ( 1.0 - blend ) ) );
+      }
+      vec3 blendOverlay( vec3 base, vec3 blend ) {
+        return vec3( blendOverlay( base.r, blend.r ), blendOverlay( base.g, blend.g ), blendOverlay( base.b, blend.b ) );
+      }
+      void main() {
+        #include <logdepthbuf_fragment>
+        vec4 base = texture2DProj( tDiffuse, vUv );
+        gl_FragColor = vec4( blendOverlay( base.rgb, color ), reflectOpacity );
+        #include <tonemapping_fragment>
+        #include <colorspace_fragment>
+      }`,
+  };
+  const matReflector = new Reflector(reflectorGeom, {
+    color: new THREE.Color(0xffffff),
+    textureWidth: 1024,
+    textureHeight: 1024,
+    clipBias: 0.003,
+    shader: customReflectorShader,
+  });
+  matReflector.rotation.x = -Math.PI / 2;
+  matReflector.position.y = FLOOR_Y;
+  matReflector.material.transparent = true;
+
+  scene.add(matReflector);
 
   // Logo overlay centered on the mat
   const textureLoader = new THREE.TextureLoader();
@@ -148,9 +254,12 @@ export function initScene(canvasEl) {
     new THREE.MeshStandardMaterial({
       map: logoTexture,
       transparent: true,
-      opacity: 0.12,
+      opacity: 0.15,
       roughness: 0.9,
       metalness: 0,
+      emissive: 0xffffff,
+      emissiveMap: logoTexture,
+      emissiveIntensity: 1.5,
       depthWrite: false,
     }),
   );
@@ -158,6 +267,47 @@ export function initScene(canvasEl) {
   logoPlane.position.y = FLOOR_Y + 0.001;
   logoPlane.receiveShadow = false;
   scene.add(logoPlane);
+
+  // ── Orbiting edge lights ─────────────────────────────────
+  orbitLights = [];
+  for (let i = 0; i < ORBIT_LIGHT_COUNT; i++) {
+    const light = new THREE.PointLight(ORBIT_LIGHT_COLOR, ORBIT_LIGHT_INTENSITY, 18, 1.2);
+    // Randomize orbit parameters
+    const startAngle = (Math.PI * 2 / ORBIT_LIGHT_COUNT) * i + Math.random() * 0.5;
+    const speedVariation = 0.7 + Math.random() * 0.6; // 0.7x to 1.3x base speed
+    const radiusVariation = ORBIT_LIGHT_DISTANCE + (Math.random() - 0.5) * 1.5;
+    const heightVariation = ORBIT_LIGHT_HEIGHT + (Math.random() - 0.5) * 1.0;
+
+    light.position.set(
+      Math.cos(startAngle) * radiusVariation,
+      FLOOR_Y + heightVariation,
+      Math.sin(startAngle) * radiusVariation,
+    );
+    light.castShadow = true;
+    light.shadow.mapSize.set(512, 512);
+    light.shadow.camera.near = 0.1;
+    light.shadow.camera.far = 20;
+    light.layers.set(1); // Layer 1 = visible to main camera but not Reflector
+    scene.add(light);
+
+    // Small glowing sphere to visualize the light trace
+    const helper = new THREE.Mesh(
+      new THREE.SphereGeometry(0.04, 8, 8),
+      new THREE.MeshBasicMaterial({ color: ORBIT_LIGHT_COLOR }),
+    );
+    helper.layers.set(2); // Visible to main camera (layer 2) but not Reflector (layer 0)
+    light.add(helper);
+
+    orbitLights.push({
+      light,
+      angle: startAngle,
+      speed: ORBIT_LIGHT_SPEED * speedVariation,
+      radius: radiusVariation,
+      height: heightVariation,
+      tilt: Math.random() * Math.PI * 0.4,        // 0 to ~72° tilt from horizontal
+      tiltAxis: Math.random() * Math.PI * 2,       // random axis direction
+    });
+  }
 
   // Raised border — extruded hexagon ring
   const innerRadius = MAT_RADIUS - 0.15;
@@ -175,10 +325,12 @@ export function initScene(canvasEl) {
   });
   const borderMesh = new THREE.Mesh(
     borderGeom,
-    new THREE.MeshPhongMaterial({
-      color: 0x0a0a0a,
-      specular: 0x333333,
-      shininess: 70,
+    new THREE.MeshStandardMaterial({
+      color: MAT_COLOR,
+      roughness: MAT_ROUGHNESS,
+      metalness: MAT_METALNESS,
+      envMap,
+      envMapIntensity: MAT_REFLECTIVITY * 2,
     }),
   );
   borderMesh.rotation.x = -Math.PI / 2;

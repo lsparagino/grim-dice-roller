@@ -69,6 +69,7 @@ body {
 
 #score-overlay.visible {
   opacity: 1;
+  background: radial-gradient(ellipse at center, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0.3) 60%, transparent 100%);
 }
 
 /* Score pop-in animation */
@@ -103,7 +104,12 @@ body {
 }
 
 .dice-card .die-icon {
-  @apply w-7 h-7 sm:w-10 sm:h-10 text-grim-muted transition-colors duration-200;
+  @apply w-9 h-9 sm:w-12 sm:h-12 text-grim-muted transition-colors duration-200;
+}
+.dice-card .die-icon img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
 }
 
 .dice-card.active .die-icon {
@@ -111,7 +117,7 @@ body {
 }
 
 .dice-card .die-name {
-  @apply font-heading text-xs sm:text-sm uppercase tracking-wider text-grim-muted;
+  @apply font-heading text-sm sm:text-base uppercase tracking-wider text-grim-muted;
 }
 
 .dice-card.active .die-name {
@@ -123,20 +129,20 @@ body {
 }
 
 .qty-btn {
-  @apply w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-grim-border/40 text-grim-muted
-         flex items-center justify-center text-sm sm:text-base font-bold
+  @apply w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-grim-border/40 text-grim-muted
+         flex items-center justify-center text-base sm:text-lg font-bold
          hover:bg-grim-highlight/20 hover:text-grim-white
          active:scale-90 transition-all duration-150 cursor-pointer
          leading-none;
 }
 
 .qty-value {
-  @apply font-heading text-base sm:text-lg w-5 sm:w-6 text-center text-grim-white tabular-nums;
+  @apply font-heading text-lg sm:text-xl w-6 sm:w-7 text-center text-grim-white tabular-nums;
 }
 
 /* ── History Card ──────────────────────────────────────────── */
 .history-card {
-  @apply bg-grim-surface border border-grim-border/20 rounded-lg p-2 sm:p-3
+  @apply bg-grim-surface border border-grim-border/20 rounded-lg p-3 sm:p-4
          transition-all duration-300;
   animation: slideIn 0.3s ease-out;
 }
@@ -157,12 +163,12 @@ body {
 }
 
 .history-die-result {
-  @apply inline-flex items-center gap-1 px-1.5 sm:px-2 py-0.5 rounded bg-grim-border/30
-         font-heading text-xs sm:text-sm text-grim-white;
+  @apply inline-flex items-center gap-1 px-2 sm:px-2.5 py-0.5 sm:py-1 rounded bg-grim-border/30
+         font-heading text-sm sm:text-base text-grim-white;
 }
 
 .history-die-result .die-label {
-  @apply text-grim-muted text-xs;
+  @apply text-grim-muted text-xs sm:text-sm;
 }
 
 /* ── Result Die Badge (totals-only mode) ───────────────────── */

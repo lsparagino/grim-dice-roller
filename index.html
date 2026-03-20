@@ -18,10 +18,10 @@
 
       <!-- Header -->
       <header class="py-3 px-4 text-center border-b border-grim-border/30">
-        <h1 class="font-heading text-2xl sm:text-3xl md:text-4xl tracking-wider text-grim-white uppercase">
+        <h1 class="font-heading text-3xl sm:text-4xl md:text-5xl tracking-wider text-grim-white uppercase">
           Grim <span class="text-grim-highlight">Dice</span> Roller
         </h1>
-        <p class="font-body text-xs text-grim-muted mt-0.5 italic">Dark Tactical RPG Companion</p>
+        <p class="font-body text-xs sm:text-sm text-grim-muted mt-0.5 italic">Dark Tactical RPG Companion</p>
       </header>
 
       <!-- Main Content -->
@@ -34,12 +34,12 @@
 
           <!-- Dice Selector Overlay -->
           <div id="dice-overlay" class="absolute inset-0 flex flex-col items-center justify-center rounded-lg transition-opacity duration-500">
-            <h2 class="font-heading text-xs sm:text-base uppercase tracking-widest text-grim-muted mb-1.5 sm:mb-3">Choose Your Dice</h2>
+            <h2 class="font-heading text-sm sm:text-lg uppercase tracking-widest text-grim-muted mb-1.5 sm:mb-3">Choose Your Dice</h2>
             <div id="dice-grid" class="grid grid-cols-3 gap-2 sm:gap-3 px-2 sm:px-6 w-full max-w-md"></div>
             <button
               id="roll-btn"
               disabled
-              class="font-heading text-sm sm:text-lg uppercase tracking-widest px-5 sm:px-8 py-1.5 sm:py-2.5 mt-2 sm:mt-4 bg-grim-border text-grim-white rounded
+              class="font-heading text-base sm:text-xl uppercase tracking-widest px-6 sm:px-10 py-2 sm:py-3 mt-2 sm:mt-4 bg-grim-border text-grim-white rounded
                      disabled:opacity-30 disabled:cursor-not-allowed disabled:shadow-none
                      hover:bg-grim-highlight/20 active:scale-95
                      shadow-[0_0_15px_rgba(200,200,200,0.1)] hover:shadow-[0_0_25px_rgba(200,200,200,0.15)]
@@ -50,10 +50,20 @@
           </div>
 
           <!-- Grand Total Overlay (shown after roll, animated) -->
-          <div id="score-overlay" class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none opacity-0 transition-opacity duration-500">
+          <div id="score-overlay" class="absolute inset-0 flex flex-col items-center justify-center opacity-0 transition-opacity duration-500"
+               style="pointer-events: none;">
             <div id="per-type-totals" class="flex flex-wrap gap-2 justify-center mb-2"></div>
-            <span id="grand-total" class="font-heading text-6xl sm:text-8xl text-grim-white score-pop">0</span>
-            <span class="font-heading text-xs sm:text-sm uppercase tracking-widest text-grim-muted mt-1">Grand Total</span>
+            <span id="grand-total" class="font-heading text-7xl sm:text-9xl text-grim-white score-pop">0</span>
+            <span class="font-heading text-sm sm:text-base uppercase tracking-widest text-grim-muted mt-1">Grand Total</span>
+            <button
+              id="new-roll-btn"
+              class="font-heading text-base sm:text-xl uppercase tracking-widest px-6 sm:px-10 py-2 sm:py-3 mt-4 sm:mt-6 bg-grim-border text-grim-white rounded
+                     hover:bg-grim-highlight/20 active:scale-95
+                     shadow-[0_0_15px_rgba(200,200,200,0.1)] hover:shadow-[0_0_25px_rgba(200,200,200,0.15)]
+                     transition-all duration-200 cursor-pointer"
+            >
+              New Roll
+            </button>
           </div>
 
           <!-- Totals-only results (>10 dice) -->
@@ -65,7 +75,7 @@
         <!-- Roll History -->
         <section id="history-section" class="mt-auto">
           <div class="flex items-center justify-between mb-2">
-            <h2 class="font-heading text-sm sm:text-base uppercase tracking-widest text-grim-muted">Roll History</h2>
+            <h2 class="font-heading text-base sm:text-lg uppercase tracking-widest text-grim-muted">Roll History</h2>
             <button id="clear-history-btn" class="font-body text-xs text-grim-muted hover:text-grim-white transition-colors cursor-pointer hidden">
               Clear
             </button>

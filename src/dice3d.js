@@ -14,6 +14,9 @@ import {
   disposeScene as disposeSceneInternal,
   resizeScene as resizeSceneInternal,
   getScene, getWorld, getRenderer, getCamera, getControls,
+  updateOrbitLight,
+  setScoreOrbit,
+  updateScoreOrbit,
 } from './dice-scene.js';
 
 // ── Module state ──────────────────────────────────────────
@@ -108,6 +111,10 @@ function animate() {
 
   if (controls) controls.update();
 
+  // Always update the orbiting light and score camera orbit
+  updateOrbitLight(dt);
+  updateScoreOrbit(dt);
+
   // Only step physics while dice are still rolling
   if (isAnimating && world) {
     world.step(1 / 60, dt, 3);
@@ -131,17 +138,23 @@ function animate() {
       }));
 
       if (onCompleteCallback) onCompleteCallback(results);
-
-      // In non-debug mode, stop the loop to save resources
-      if (!DEBUG) {
-        cancelAnimationFrame(animationId);
-        animationId = null;
-        return;
-      }
     }
   }
 
   renderer.render(scene, camera);
+
+  // Debug HUD — live camera position
+  if (DEBUG && camera) {
+    let hud = document.getElementById('debug-hud');
+    if (!hud) {
+      hud = document.createElement('div');
+      hud.id = 'debug-hud';
+      hud.style.cssText = 'position:fixed;top:8px;left:8px;color:#0f0;font:12px monospace;z-index:9999;background:rgba(0,0,0,0.6);padding:4px 8px;border-radius:4px;pointer-events:none;';
+      document.body.appendChild(hud);
+    }
+    const p = camera.position;
+    hud.textContent = `cam: [${p.x.toFixed(2)}, ${p.y.toFixed(2)}, ${p.z.toFixed(2)}]`;
+  }
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -150,6 +163,12 @@ function animate() {
 export function initScene(canvasEl) {
   initSceneInternal(canvasEl);
   initialized = true;
+
+  // Start the animation loop immediately (needed for orbiting light)
+  if (!animationId) {
+    lastTime = performance.now();
+    animate();
+  }
 }
 
 /**
@@ -230,3 +249,4 @@ export function resizeScene(canvasEl) {
 }
 
 export function getIsAnimating() { return isAnimating; }
+export { setScoreOrbit };

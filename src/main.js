@@ -3,7 +3,7 @@
  */
 import './style.css';
 import { diceIcons, diceTypes, diceMax } from './dice-icons.js';
-import { initScene, rollDice3D, disposeScene, resizeScene, getIsAnimating } from './dice3d.js';
+import { initScene, rollDice3D, disposeScene, resizeScene, getIsAnimating, setScoreOrbit } from './dice3d.js';
 
 // ── State ────────────────────────────────────────────────
 const state = {
@@ -31,12 +31,14 @@ const totalsGrid = document.getElementById('totals-grid');
 const historyList = document.getElementById('history-list');
 const historyEmpty = document.getElementById('history-empty');
 const clearHistoryBtn = document.getElementById('clear-history-btn');
+const newRollBtn = document.getElementById('new-roll-btn');
 
 // ── Init ─────────────────────────────────────────────────
 buildDiceSelector();
 renderHistory();
 rollBtn.addEventListener('click', handleRoll);
 clearHistoryBtn.addEventListener('click', clearHistory);
+newRollBtn.addEventListener('click', showDiceOverlay);
 window.addEventListener('resize', handleResize);
 
 // Initialize the 3D scene immediately (canvas always visible)
@@ -95,7 +97,10 @@ function updateDiceUI() {
 function showDiceOverlay() {
   diceOverlay.classList.remove('fade-out');
   scoreOverlay.classList.remove('visible');
+  scoreOverlay.style.pointerEvents = 'none';
   grandTotalEl.classList.remove('animate');
+  setScoreOrbit(false);
+  diceCanvas.classList.remove('score-active');
 }
 
 // ── Rolling ──────────────────────────────────────────────
@@ -187,16 +192,16 @@ function showScoreOverlay(diceList) {
   const grandTotal = diceList.reduce((a, d) => a + d.result, 0);
   grandTotalEl.textContent = grandTotal;
 
-  // Show the score overlay with animation
+  // Show the score overlay with animation — stays until New Roll is clicked
   scoreOverlay.classList.add('visible');
+  scoreOverlay.style.pointerEvents = 'auto';
   // Force reflow then add animation class
   void grandTotalEl.offsetWidth;
   grandTotalEl.classList.add('animate');
 
-  // After a delay, show the dice selector again so user can re-roll
-  setTimeout(() => {
-    showDiceOverlay();
-  }, 3000);
+  // Start camera orbit and darken the frame
+  setScoreOrbit(true);
+  diceCanvas.classList.add('score-active');
 }
 
 function showTotalsOnlyGrid(diceList) {
@@ -269,9 +274,9 @@ function renderHistory() {
     });
 
     card.innerHTML = `
-      <div class="flex items-center justify-between mb-1 sm:mb-2">
-        <span class="font-body text-xs text-grim-muted">${entry.timestamp}</span>
-        <span class="font-heading text-base sm:text-lg text-grim-white">${entry.total}</span>
+      <div class="flex items-center justify-between mb-1.5 sm:mb-2">
+        <span class="font-body text-sm text-grim-muted">${entry.timestamp}</span>
+        <span class="font-heading text-xl sm:text-2xl text-grim-white">${entry.total}</span>
       </div>
       <div class="history-dice">${diceHtml}</div>
     `;

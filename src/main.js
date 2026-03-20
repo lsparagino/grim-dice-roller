@@ -21,13 +21,13 @@ const MAX_QTY = 20;
 // ── DOM refs ─────────────────────────────────────────────
 const diceGrid = document.getElementById('dice-grid');
 const rollBtn = document.getElementById('roll-btn');
-const resultsArea = document.getElementById('results-area');
 const diceCanvas = document.getElementById('dice-canvas');
-const totalsOnly = document.getElementById('totals-only');
-const totalsGrid = document.getElementById('totals-grid');
-const totalsSummary = document.getElementById('totals-summary');
+const diceOverlay = document.getElementById('dice-overlay');
+const scoreOverlay = document.getElementById('score-overlay');
 const perTypeTotals = document.getElementById('per-type-totals');
 const grandTotalEl = document.getElementById('grand-total');
+const totalsOnly = document.getElementById('totals-only');
+const totalsGrid = document.getElementById('totals-grid');
 const historyList = document.getElementById('history-list');
 const historyEmpty = document.getElementById('history-empty');
 const clearHistoryBtn = document.getElementById('clear-history-btn');
@@ -38,6 +38,10 @@ renderHistory();
 rollBtn.addEventListener('click', handleRoll);
 clearHistoryBtn.addEventListener('click', clearHistory);
 window.addEventListener('resize', handleResize);
+
+// Initialize the 3D scene immediately (canvas always visible)
+initScene(diceCanvas);
+state.sceneInitialized = true;
 
 // ── Dice Selector ────────────────────────────────────────
 function buildDiceSelector() {
@@ -87,6 +91,13 @@ function updateDiceUI() {
   rollBtn.disabled = totalDice === 0;
 }
 
+// Show the dice selector overlay
+function showDiceOverlay() {
+  diceOverlay.classList.remove('fade-out');
+  scoreOverlay.classList.remove('visible');
+  grandTotalEl.classList.remove('animate');
+}
+
 // ── Rolling ──────────────────────────────────────────────
 function handleRoll() {
   if (getIsAnimating()) return;
@@ -94,19 +105,14 @@ function handleRoll() {
   const totalDice = Object.values(state.quantities).reduce((a, b) => a + b, 0);
   if (totalDice === 0) return;
 
-  // Show results area
-  resultsArea.classList.remove('hidden');
+  // Fade out the dice selector overlay
+  diceOverlay.classList.add('fade-out');
+  scoreOverlay.classList.remove('visible');
+  grandTotalEl.classList.remove('animate');
 
   if (totalDice <= MAX_DICE_3D) {
     // 3D mode — pass dice types, let physics determine results
     totalsOnly.classList.add('hidden');
-    diceCanvas.classList.remove('hidden');
-    totalsSummary.classList.add('hidden');
-
-    if (!state.sceneInitialized) {
-      initScene(diceCanvas);
-      state.sceneInitialized = true;
-    }
 
     // Build list of dice to roll (no result yet)
     const diceToRoll = [];
@@ -127,12 +133,11 @@ function handleRoll() {
         result: r.value,
       }));
 
-      showTotalsSummary(diceList);
+      showScoreOverlay(diceList);
       addToHistory(diceList);
     });
   } else {
     // Totals-only mode — generate random results
-    diceCanvas.classList.add('hidden');
     totalsOnly.classList.remove('hidden');
 
     if (state.sceneInitialized) {
@@ -152,15 +157,13 @@ function handleRoll() {
     });
 
     showTotalsOnlyGrid(diceList);
-    showTotalsSummary(diceList);
+    showScoreOverlay(diceList);
     addToHistory(diceList);
   }
 }
 
-// ── Totals Display ───────────────────────────────────────
-function showTotalsSummary(diceList) {
-  totalsSummary.classList.remove('hidden');
-
+// ── Score Display ────────────────────────────────────────
+function showScoreOverlay(diceList) {
   // Per-type totals
   const byType = {};
   diceList.forEach(d => {
@@ -180,9 +183,20 @@ function showTotalsSummary(diceList) {
     perTypeTotals.appendChild(badge);
   });
 
-  // Grand total
+  // Grand total with pop animation
   const grandTotal = diceList.reduce((a, d) => a + d.result, 0);
   grandTotalEl.textContent = grandTotal;
+
+  // Show the score overlay with animation
+  scoreOverlay.classList.add('visible');
+  // Force reflow then add animation class
+  void grandTotalEl.offsetWidth;
+  grandTotalEl.classList.add('animate');
+
+  // After a delay, show the dice selector again so user can re-roll
+  setTimeout(() => {
+    showDiceOverlay();
+  }, 3000);
 }
 
 function showTotalsOnlyGrid(diceList) {
@@ -255,9 +269,9 @@ function renderHistory() {
     });
 
     card.innerHTML = `
-      <div class="flex items-center justify-between mb-2">
+      <div class="flex items-center justify-between mb-1 sm:mb-2">
         <span class="font-body text-xs text-grim-muted">${entry.timestamp}</span>
-        <span class="font-heading text-lg text-grim-white">${entry.total}</span>
+        <span class="font-heading text-base sm:text-lg text-grim-white">${entry.total}</span>
       </div>
       <div class="history-dice">${diceHtml}</div>
     `;

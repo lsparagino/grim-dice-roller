@@ -17,74 +17,68 @@
     <div id="app" class="relative z-10 min-h-screen flex flex-col">
 
       <!-- Header -->
-      <header class="py-4 px-4 text-center border-b border-grim-border/30">
-        <h1 class="font-heading text-3xl sm:text-4xl tracking-wider text-grim-white uppercase">
+      <header class="py-3 px-4 text-center border-b border-grim-border/30">
+        <h1 class="font-heading text-2xl sm:text-3xl md:text-4xl tracking-wider text-grim-white uppercase">
           Grim <span class="text-grim-highlight">Dice</span> Roller
         </h1>
-        <p class="font-body text-xs sm:text-sm text-grim-muted mt-1 italic">Dark Tactical RPG Companion</p>
+        <p class="font-body text-xs text-grim-muted mt-0.5 italic">Dark Tactical RPG Companion</p>
       </header>
 
       <!-- Main Content -->
-      <main class="flex-1 flex flex-col max-w-5xl mx-auto w-full px-4 py-6 gap-6">
+      <main class="flex-1 flex flex-col max-w-5xl mx-auto w-full px-2 sm:px-4 py-3 sm:py-4 gap-3 sm:gap-4">
 
-        <!-- Dice Selector Section -->
-        <section id="dice-selector" aria-label="Dice Selection">
-          <h2 class="font-heading text-lg uppercase tracking-widest text-grim-muted mb-4 text-center">Choose Your Dice</h2>
-          <div id="dice-grid" class="grid grid-cols-3 sm:grid-cols-6 gap-3"></div>
-        </section>
+        <!-- 3D Dice Rolling Frame (always visible) -->
+        <section id="dice-frame" class="relative w-full">
+          <!-- 3D canvas -->
+          <canvas id="dice-canvas" class="w-full rounded-lg border border-grim-border/20 bg-grim-surface"></canvas>
 
-        <!-- Roll Button -->
-        <div class="flex justify-center">
-          <button
-            id="roll-btn"
-            disabled
-            class="font-heading text-xl uppercase tracking-widest px-10 py-3 bg-grim-border text-grim-white rounded
-                   disabled:opacity-30 disabled:cursor-not-allowed disabled:shadow-none
-                   hover:bg-grim-highlight/20 active:scale-95
-                   shadow-[0_0_15px_rgba(200,200,200,0.1)] hover:shadow-[0_0_25px_rgba(200,200,200,0.15)]
-                   transition-all duration-200 cursor-pointer"
-          >
-            Roll Dice
-          </button>
-        </div>
-
-        <!-- 3D Canvas / Results Area -->
-        <section id="results-area" class="relative min-h-[200px] sm:min-h-[300px] hidden">
-          <!-- 3D canvas is injected here by dice3d.js -->
-          <canvas id="dice-canvas" class="w-full rounded-lg border border-grim-border/20 bg-grim-surface hidden"></canvas>
-
-          <!-- Totals-only results (>10 dice) -->
-          <div id="totals-only" class="hidden">
-            <div id="totals-grid" class="grid grid-cols-2 sm:grid-cols-3 gap-3"></div>
+          <!-- Dice Selector Overlay -->
+          <div id="dice-overlay" class="absolute inset-0 flex flex-col items-center justify-center rounded-lg transition-opacity duration-500">
+            <h2 class="font-heading text-xs sm:text-base uppercase tracking-widest text-grim-muted mb-1.5 sm:mb-3">Choose Your Dice</h2>
+            <div id="dice-grid" class="grid grid-cols-3 gap-2 sm:gap-3 px-2 sm:px-6 w-full max-w-md"></div>
+            <button
+              id="roll-btn"
+              disabled
+              class="font-heading text-sm sm:text-lg uppercase tracking-widest px-5 sm:px-8 py-1.5 sm:py-2.5 mt-2 sm:mt-4 bg-grim-border text-grim-white rounded
+                     disabled:opacity-30 disabled:cursor-not-allowed disabled:shadow-none
+                     hover:bg-grim-highlight/20 active:scale-95
+                     shadow-[0_0_15px_rgba(200,200,200,0.1)] hover:shadow-[0_0_25px_rgba(200,200,200,0.15)]
+                     transition-all duration-200 cursor-pointer"
+            >
+              Roll Dice
+            </button>
           </div>
 
-          <!-- Totals summary (always shown after roll) -->
-          <div id="totals-summary" class="mt-4 p-4 rounded-lg bg-grim-surface border border-grim-border/30 hidden">
-            <div id="per-type-totals" class="flex flex-wrap gap-3 justify-center mb-3"></div>
-            <div class="text-center border-t border-grim-border/20 pt-3">
-              <span class="font-heading text-sm uppercase tracking-widest text-grim-muted">Grand Total</span>
-              <span id="grand-total" class="block font-heading text-4xl text-grim-white mt-1">0</span>
-            </div>
+          <!-- Grand Total Overlay (shown after roll, animated) -->
+          <div id="score-overlay" class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none opacity-0 transition-opacity duration-500">
+            <div id="per-type-totals" class="flex flex-wrap gap-2 justify-center mb-2"></div>
+            <span id="grand-total" class="font-heading text-6xl sm:text-8xl text-grim-white score-pop">0</span>
+            <span class="font-heading text-xs sm:text-sm uppercase tracking-widest text-grim-muted mt-1">Grand Total</span>
+          </div>
+
+          <!-- Totals-only results (>10 dice) -->
+          <div id="totals-only" class="hidden absolute inset-0 rounded-lg overflow-auto p-4">
+            <div id="totals-grid" class="grid grid-cols-2 sm:grid-cols-3 gap-3"></div>
           </div>
         </section>
 
         <!-- Roll History -->
         <section id="history-section" class="mt-auto">
-          <div class="flex items-center justify-between mb-3">
-            <h2 class="font-heading text-lg uppercase tracking-widest text-grim-muted">Roll History</h2>
+          <div class="flex items-center justify-between mb-2">
+            <h2 class="font-heading text-sm sm:text-base uppercase tracking-widest text-grim-muted">Roll History</h2>
             <button id="clear-history-btn" class="font-body text-xs text-grim-muted hover:text-grim-white transition-colors cursor-pointer hidden">
               Clear
             </button>
           </div>
           <div id="history-list" class="space-y-2">
-            <p id="history-empty" class="font-body text-sm text-grim-muted/50 text-center italic py-4">No rolls yet. Choose your dice and roll!</p>
+            <p id="history-empty" class="font-body text-xs sm:text-sm text-grim-muted/50 text-center italic py-3">No rolls yet. Choose your dice and roll!</p>
           </div>
         </section>
 
       </main>
 
       <!-- Footer -->
-      <footer class="py-3 text-center border-t border-grim-border/30">
+      <footer class="py-2 text-center border-t border-grim-border/30">
         <p class="font-body text-xs text-grim-muted/40">
           Companion app for <a href="https://www.grim-rpg.com" target="_blank" rel="noopener" class="text-grim-muted hover:text-grim-white transition-colors underline">Grim: Dark Tactical RPG</a>
         </p>

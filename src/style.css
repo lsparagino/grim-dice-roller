@@ -28,10 +28,73 @@ body {
   background-size: 200px 200px;
 }
 
+/* ── 3D Canvas ─────────────────────────────────────────────── */
+#dice-canvas {
+  aspect-ratio: 4 / 5;
+  max-height: 70vh;
+  display: block;
+}
+
+@media (min-width: 640px) {
+  #dice-canvas {
+    aspect-ratio: 16 / 9;
+    max-height: 50vh;
+  }
+}
+
+/* ── Dice Selector Overlay ─────────────────────────────────── */
+#dice-overlay {
+  background: rgba(10, 10, 12, 0.75);
+  backdrop-filter: blur(4px);
+  z-index: 10;
+  overflow-y: auto;
+  padding: 1rem 0.5rem;
+}
+
+@media (min-width: 640px) {
+  #dice-overlay {
+    padding: 2rem 1rem;
+  }
+}
+
+#dice-overlay.fade-out {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* ── Score Overlay ─────────────────────────────────────────── */
+#score-overlay {
+  z-index: 5;
+}
+
+#score-overlay.visible {
+  opacity: 1;
+}
+
+/* Score pop-in animation */
+@keyframes scorePop {
+  0% {
+    transform: scale(0.3);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.15);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.score-pop.animate {
+  animation: scorePop 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
 /* ── Dice Card ─────────────────────────────────────────────── */
 .dice-card {
-  @apply bg-grim-surface border border-grim-border/30 rounded-lg p-3
-         flex flex-col items-center gap-2 select-none
+  @apply bg-grim-surface/80 border border-grim-border/30 rounded-lg p-1.5 sm:p-3
+         flex flex-col items-center gap-0.5 sm:gap-1 select-none
          transition-all duration-200;
 }
 
@@ -40,7 +103,7 @@ body {
 }
 
 .dice-card .die-icon {
-  @apply w-10 h-10 sm:w-12 sm:h-12 text-grim-muted transition-colors duration-200;
+  @apply w-7 h-7 sm:w-10 sm:h-10 text-grim-muted transition-colors duration-200;
 }
 
 .dice-card.active .die-icon {
@@ -48,7 +111,7 @@ body {
 }
 
 .dice-card .die-name {
-  @apply font-heading text-sm uppercase tracking-wider text-grim-muted;
+  @apply font-heading text-xs sm:text-sm uppercase tracking-wider text-grim-muted;
 }
 
 .dice-card.active .die-name {
@@ -56,24 +119,24 @@ body {
 }
 
 .qty-controls {
-  @apply flex items-center gap-2;
+  @apply flex items-center gap-1.5 sm:gap-2;
 }
 
 .qty-btn {
-  @apply w-7 h-7 rounded-full bg-grim-border/40 text-grim-muted
-         flex items-center justify-center text-base font-bold
+  @apply w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-grim-border/40 text-grim-muted
+         flex items-center justify-center text-sm sm:text-base font-bold
          hover:bg-grim-highlight/20 hover:text-grim-white
          active:scale-90 transition-all duration-150 cursor-pointer
          leading-none;
 }
 
 .qty-value {
-  @apply font-heading text-lg w-6 text-center text-grim-white tabular-nums;
+  @apply font-heading text-base sm:text-lg w-5 sm:w-6 text-center text-grim-white tabular-nums;
 }
 
 /* ── History Card ──────────────────────────────────────────── */
 .history-card {
-  @apply bg-grim-surface border border-grim-border/20 rounded-lg p-3
+  @apply bg-grim-surface border border-grim-border/20 rounded-lg p-2 sm:p-3
          transition-all duration-300;
   animation: slideIn 0.3s ease-out;
 }
@@ -90,12 +153,12 @@ body {
 }
 
 .history-card .history-dice {
-  @apply flex flex-wrap gap-1.5;
+  @apply flex flex-wrap gap-1 sm:gap-1.5;
 }
 
 .history-die-result {
-  @apply inline-flex items-center gap-1 px-2 py-0.5 rounded bg-grim-border/30
-         font-heading text-sm text-grim-white;
+  @apply inline-flex items-center gap-1 px-1.5 sm:px-2 py-0.5 rounded bg-grim-border/30
+         font-heading text-xs sm:text-sm text-grim-white;
 }
 
 .history-die-result .die-label {
@@ -121,8 +184,8 @@ body {
 
 /* ── Per-type total badge ──────────────────────────────────── */
 .type-total-badge {
-  @apply inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-grim-border/30
-         font-heading text-sm;
+  @apply inline-flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-1 sm:py-1.5 rounded-full bg-grim-border/30
+         font-heading text-xs sm:text-sm;
 }
 
 .type-total-badge .badge-label {
@@ -131,12 +194,6 @@ body {
 
 .type-total-badge .badge-value {
   @apply text-grim-white;
-}
-
-/* ── 3D Canvas ─────────────────────────────────────────────── */
-#dice-canvas {
-  aspect-ratio: 16 / 9;
-  max-height: 400px;
 }
 
 /* ── Rolling animation on button ───────────────────────────── */

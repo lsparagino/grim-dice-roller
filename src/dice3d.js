@@ -6,8 +6,8 @@
 import * as THREE from 'three';
 import * as CANNON from 'cannon-es';
 import { DEBUG, DIE_SIZE, DIE_SCALE, THROW_HEIGHT, SETTLE_THRESHOLD, SETTLE_FRAMES } from './dice-constants.js';
-import { DICE_GEOM, buildDieGeometry } from './dice-geometry.js';
-import { createEdgeMaterial, createFaceMaterial } from './dice-materials.js';
+import { DICE_GEOM, buildDieGeometry, D4_FACE_CORNERS, D4_VERTEX_LABELS } from './dice-geometry.js';
+import { createEdgeMaterial, createFaceMaterial, createD4FaceMaterial } from './dice-materials.js';
 import { createDieBody } from './dice-physics.js';
 import {
   initScene as initSceneInternal,
@@ -42,8 +42,16 @@ function createDieMesh(type) {
   // Material 0 = edge/body (no number)
   // Materials 1..N = numbered faces
   const materials = [createEdgeMaterial()];
-  for (let i = 0; i < numFaces; i++) {
-    materials.push(createFaceMaterial(i + 1));
+
+  if (type === 'd4') {
+    // D4: each face gets 3 corner numbers (vertex labels)
+    for (let i = 0; i < numFaces; i++) {
+      materials.push(createD4FaceMaterial(D4_FACE_CORNERS[i]));
+    }
+  } else {
+    for (let i = 0; i < numFaces; i++) {
+      materials.push(createFaceMaterial(i + 1));
+    }
   }
 
   const mesh = new THREE.Mesh(geometry, materials);
@@ -61,7 +69,13 @@ function createDieMesh(type) {
  * Uses face normals from the geometry, transformed by the mesh quaternion.
  */
 function getFaceValue(dieObj) {
-  const { mesh } = dieObj;
+  const { mesh, type } = dieObj;
+
+  // D4: the result is the vertex pointing UP, not the face pointing up
+  if (type === 'd4') {
+    return getD4FaceValue(mesh);
+  }
+
   const geometry = mesh.geometry;
   const normalAttr = geometry.getAttribute('normal');
   const groups = geometry.groups;
@@ -92,6 +106,30 @@ function getFaceValue(dieObj) {
   }
 
   return bestMaterialIndex;
+}
+
+/**
+ * D4 value detection: find which original vertex has the highest Y after rotation.
+ * That vertex's label (1-4) is the die result.
+ */
+function getD4FaceValue(mesh) {
+  const geomData = DICE_GEOM.d4;
+  const upVector = new THREE.Vector3(0, 1, 0);
+  let bestLabel = 1;
+  let bestDot = -Infinity;
+
+  for (let i = 0; i < geomData.vertices.length; i++) {
+    const v = new THREE.Vector3(...geomData.vertices[i]).normalize();
+    v.applyQuaternion(mesh.quaternion);
+
+    const dot = v.dot(upVector);
+    if (dot > bestDot) {
+      bestDot = dot;
+      bestLabel = D4_VERTEX_LABELS[i];
+    }
+  }
+
+  return bestLabel;
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -234,6 +272,24 @@ export function rollDice3D(diceList, onComplete) {
     lastTime = performance.now();
     animate();
   }
+}
+
+export function clearDice() {
+  const scene = getScene();
+  const world = getWorld();
+  for (const d of diceObjects) {
+    if (scene) scene.remove(d.mesh);
+    if (world) world.removeBody(d.body);
+    d.mesh.geometry.dispose();
+    if (Array.isArray(d.mesh.material)) {
+      for (const m of d.mesh.material) {
+        if (m.map) m.map.dispose();
+        m.dispose();
+      }
+    }
+  }
+  diceObjects = [];
+  isAnimating = false;
 }
 
 export function disposeScene() {

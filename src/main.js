@@ -3,7 +3,7 @@
  */
 import './style.css';
 import { diceIcons, diceTypes, diceMax } from './dice-icons.js';
-import { initScene, rollDice3D, disposeScene, resizeScene, getIsAnimating, setScoreOrbit } from './dice3d.js';
+import { initScene, rollDice3D, clearDice, resizeScene, getIsAnimating, setScoreOrbit } from './dice3d.js';
 
 // ── State ────────────────────────────────────────────────
 const state = {
@@ -145,10 +145,8 @@ function handleRoll() {
     // Totals-only mode — generate random results
     totalsOnly.classList.remove('hidden');
 
-    if (state.sceneInitialized) {
-      disposeScene();
-      state.sceneInitialized = false;
-    }
+    // Clear any existing dice from the scene (keep renderer alive)
+    clearDice();
 
     const diceList = [];
     diceTypes.forEach(type => {

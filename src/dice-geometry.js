@@ -64,6 +64,29 @@ export const DICE_GEOM = {
 };
 
 // ═══════════════════════════════════════════════════════════
+// D4 VERTEX-BASED NUMBERING
+// Real d4 dice have 3 numbers at each face corner (vertex labels 1-4).
+// The die result = the vertex pointing UP (the one NOT on the bottom face).
+// ═══════════════════════════════════════════════════════════
+
+/** Vertex index → number label (1-indexed) */
+export const D4_VERTEX_LABELS = [1, 2, 3, 4];
+
+/**
+ * For each face, the 3 corner numbers (matching vertex order in DICE_GEOM.d4.faces).
+ * face 0: verts [1,0,2] → labels [2,1,3], missing vert 3 (label 4) → value=4
+ * face 1: verts [0,1,3] → labels [1,2,4], missing vert 2 (label 3) → value=3
+ * face 2: verts [0,3,2] → labels [1,4,3], missing vert 1 (label 2) → value=2
+ * face 3: verts [1,2,3] → labels [2,3,4], missing vert 0 (label 1) → value=1
+ */
+export const D4_FACE_CORNERS = [
+  [2, 1, 3],  // face 0
+  [1, 2, 4],  // face 1
+  [1, 4, 3],  // face 2
+  [2, 3, 4],  // face 3
+];
+
+// ═══════════════════════════════════════════════════════════
 // CHAMFERING — creates beveled edges from polyhedron data
 // Adapted from dice-box-threejs (MIT)
 // ═══════════════════════════════════════════════════════════
@@ -179,7 +202,10 @@ export function buildDieGeometry(type, radius) {
     const aa = (Math.PI * 2) / fl;
 
     // Rotation correction for text on faces
-    const af = isD10 ? Math.PI : 0;
+    // d6: π/4 aligns the diamond UV projection with face edges
+    // d10: π flips for correct text orientation on kite faces
+    const isD6 = type === 'd6';
+    const af = isD10 ? Math.PI : isD6 ? (Math.PI / 4) : 0;
     const tab = isD10 ? 0.3 : 0;
 
     // Fan-triangulate the face

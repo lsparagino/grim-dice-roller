@@ -85,7 +85,7 @@ export function initScene(canvasEl) {
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.setClearColor(0x0a0a12);
   renderer.shadowMap.enabled = true;
-  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.shadowMap.type = THREE.PCFShadowMap;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
 
   scene = new THREE.Scene();
@@ -233,8 +233,8 @@ export function initScene(canvasEl) {
   };
   const matReflector = new Reflector(reflectorGeom, {
     color: new THREE.Color(0xffffff),
-    textureWidth: 1024,
-    textureHeight: 1024,
+    textureWidth: 512,
+    textureHeight: 512,
     clipBias: 0.003,
     shader: customReflectorShader,
   });
@@ -283,10 +283,7 @@ export function initScene(canvasEl) {
       FLOOR_Y + heightVariation,
       Math.sin(startAngle) * radiusVariation,
     );
-    light.castShadow = true;
-    light.shadow.mapSize.set(512, 512);
-    light.shadow.camera.near = 0.1;
-    light.shadow.camera.far = 20;
+    light.castShadow = false; // Shadows disabled for perf — 12 PointLight shadows = 72 cubemap passes/frame
     light.layers.set(1); // Layer 1 = visible to main camera but not Reflector
     scene.add(light);
 

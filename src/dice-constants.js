@@ -40,7 +40,7 @@ export const BG_TEXTURE_SCALE = 4; // bg.jpg repeat scale on dice faces
 export const DICE_SHININESS = 200; // Phong shininess for glossy plastic look
 
 // Orbiting edge lights
-export const ORBIT_LIGHT_COUNT = 12;        // Number of orbiting lights
+export const ORBIT_LIGHT_COUNT = 6;        // Number of orbiting lights
 export const ORBIT_LIGHT_SPEED = 0.1;      // Base radians per second (clockwise)
 export const ORBIT_LIGHT_INTENSITY = 200;   // PointLight intensity
 export const ORBIT_LIGHT_HEIGHT = 4.0;     // Base height above the mat

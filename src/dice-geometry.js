@@ -223,7 +223,28 @@ export function buildDieGeometry(type, radius) {
       normals.push(cb.x, cb.y, cb.z, cb.x, cb.y, cb.z, cb.x, cb.y, cb.z);
 
       // UVs — project onto face local circle
-      if (isD10 && matIndex >= 0 && j < 2) {
+      if (matIndex < 0) {
+        // Edge/corner chamfer faces — triplanar world-space UV projection.
+        // Pick two world axes perpendicular to face normal for stretch-free mapping.
+        // Each edge face samples a unique texture region based on its 3D position.
+        const faceVerts = [];
+        for (let k = 0; k < fl; k++) faceVerts.push(vectors[face[k]]);
+        const fNormal = new THREE.Vector3().subVectors(faceVerts[1], faceVerts[0])
+          .cross(new THREE.Vector3().subVectors(faceVerts[2], faceVerts[0])).normalize();
+        const ax = Math.abs(fNormal.x), ay = Math.abs(fNormal.y), az = Math.abs(fNormal.z);
+        // UV scale: face UVs inscribe a unit circle (radius 0.5 in UV space)
+        // corresponding to vertices at world distance `radius`, so 0.5/radius
+        const uvScale = 0.5 / radius;
+        const idxs = [0, j + 1, j + 2];
+        for (const idx of idxs) {
+          const fv = faceVerts[idx];
+          let eu, ev;
+          if (ax >= ay && ax >= az) { eu = fv.y; ev = fv.z; }
+          else if (ay >= ax && ay >= az) { eu = fv.x; ev = fv.z; }
+          else { eu = fv.x; ev = fv.y; }
+          uvs.push(eu * uvScale + 0.5, ev * uvScale + 0.5);
+        }
+      } else if (isD10 && matIndex >= 0 && j < 2) {
         // Special kite UVs for d10
         const w = 0.65, h = 0.85;
         const v0uv = 1 - h;

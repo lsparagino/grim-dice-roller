@@ -3,10 +3,10 @@
  */
 
 // Debug mode — enables OrbitControls camera and continuous render loop
-export const DEBUG = false;
+export const DEBUG = true;
 
 // Camera
-export const CAMERA_POS = [0, 5, 7]; // Default camera position [x, y, z]
+export const CAMERA_POS = [0, 7, 9]; // Default camera position [x, y, z]
 export const SCORE_ORBIT_SPEED = 0.15; // Radians per second for score orbit (counterclockwise)
 
 // Physics
@@ -23,8 +23,9 @@ export const CHAMFER = 0.85; // Edge chamfer factor (1 = no chamfer, 0.9 = heavy
 export const DIE_SCALE = { d4: 1, d6: 1, d8: 1, d10: 0.85, d12: 0.88, d20: 1 };
 
 // Settling detection
-export const SETTLE_THRESHOLD = 0.05;
-export const SETTLE_FRAMES = 30;
+export const SETTLE_THRESHOLD = 0.08;
+export const SETTLE_FRAMES = 20;
+export const MAX_ROLL_TIME = 6; // Force-settle after this many seconds
 
 // Hexagonal mat
 export const MAT_RADIUS = 5;

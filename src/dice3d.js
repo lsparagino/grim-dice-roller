@@ -5,7 +5,7 @@
  */
 import * as THREE from 'three';
 import * as CANNON from 'cannon-es';
-import { DEBUG, DIE_SIZE, DIE_SCALE, THROW_HEIGHT, SETTLE_THRESHOLD, SETTLE_FRAMES } from './dice-constants.js';
+import { DEBUG, DIE_SIZE, DIE_SCALE, THROW_HEIGHT, SETTLE_THRESHOLD, SETTLE_FRAMES, MAX_ROLL_TIME } from './dice-constants.js';
 import { DICE_GEOM, buildDieGeometry, D4_FACE_CORNERS, D4_VERTEX_LABELS } from './dice-geometry.js';
 import { createEdgeMaterial, createFaceMaterial, createD4FaceMaterial } from './dice-materials.js';
 import { createDieBody } from './dice-physics.js';
@@ -26,6 +26,7 @@ let onCompleteCallback = null;
 let diceObjects = [];
 let initialized = false;
 let lastTime = 0;
+let rollStartTime = 0;
 
 // ═══════════════════════════════════════════════════════════
 // MESH CREATION
@@ -158,13 +159,28 @@ function animate() {
     world.step(1 / 60, dt, 3);
 
     let allSettled = true;
-    for (const d of diceObjects) {
-      d.mesh.position.copy(d.body.position);
-      d.mesh.quaternion.copy(d.body.quaternion);
+    const rollElapsed = (now - rollStartTime) / 1000;
 
-      const speed = d.body.velocity.length() + d.body.angularVelocity.length();
-      d.settledFrames = speed < SETTLE_THRESHOLD ? d.settledFrames + 1 : 0;
-      if (d.settledFrames < SETTLE_FRAMES) allSettled = false;
+    // Force-settle if dice have been rolling too long (vibrating against walls/each other)
+    if (rollElapsed > MAX_ROLL_TIME) {
+      for (const d of diceObjects) {
+        d.body.velocity.setZero();
+        d.body.angularVelocity.setZero();
+        d.body.sleep();
+        d.mesh.position.copy(d.body.position);
+        d.mesh.quaternion.copy(d.body.quaternion);
+        d.settledFrames = SETTLE_FRAMES;
+      }
+      allSettled = true;
+    } else {
+      for (const d of diceObjects) {
+        d.mesh.position.copy(d.body.position);
+        d.mesh.quaternion.copy(d.body.quaternion);
+
+        const speed = d.body.velocity.length() + d.body.angularVelocity.length();
+        d.settledFrames = speed < SETTLE_THRESHOLD ? d.settledFrames + 1 : 0;
+        if (d.settledFrames < SETTLE_FRAMES) allSettled = false;
+      }
     }
 
     if (allSettled && diceObjects.length > 0) {
@@ -175,7 +191,12 @@ function animate() {
         value: getFaceValue(d),
       }));
 
-      if (onCompleteCallback) onCompleteCallback(results);
+      if (DEBUG) {
+        // In debug mode, just log results — don't trigger score overlay/orbit
+        console.log('🎲 Roll results:', results.map(r => `${r.type}=${r.value}`).join(', '));
+      } else if (onCompleteCallback) {
+        onCompleteCallback(results);
+      }
     }
   }
 
@@ -218,6 +239,7 @@ export function rollDice3D(diceList, onComplete) {
   const world = getWorld();
   if (!scene || !world) return;
   isAnimating = true;
+  rollStartTime = performance.now();
   onCompleteCallback = onComplete;
 
   // Clear previous dice

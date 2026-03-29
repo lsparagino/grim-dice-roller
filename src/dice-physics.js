@@ -29,14 +29,14 @@ export function createDieBody(type) {
   const body = new CANNON.Body({
     mass: 1,
     shape,
-    material: new CANNON.Material({ friction: 0.5, restitution: 0.5 }),
-    linearDamping: 0.25,
-    angularDamping: 0.25,
+    material: new CANNON.Material({ friction: 0.5, restitution: 0.35 }),
+    linearDamping: 0.4,
+    angularDamping: 0.4,
   });
 
   body.allowSleep = true;
-  body.sleepSpeedLimit = 0.1;
-  body.sleepTimeLimit = 0.5;
+  body.sleepSpeedLimit = 0.15;
+  body.sleepTimeLimit = 0.3;
 
   return body;
 }

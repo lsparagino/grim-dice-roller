@@ -348,9 +348,9 @@ export function initScene(canvasEl) {
   world.solver.iterations = 14;
   world.allowSleep = true;
 
-  const floorMat = new CANNON.Material({ friction: 0.5, restitution: 0.5 });
-  const wallMat = new CANNON.Material({ friction: 0.2, restitution: 0.7 });
-  const diceMat = new CANNON.Material({ friction: 0.5, restitution: 0.5 });
+  const floorMat = new CANNON.Material({ friction: 0.5, restitution: 0.35 });
+  const wallMat = new CANNON.Material({ friction: 0.3, restitution: 0.3 });
+  const diceMat = new CANNON.Material({ friction: 0.5, restitution: 0.35 });
 
   // Floor surface
   const floorBody = new CANNON.Body({ mass: 0, shape: new CANNON.Plane(), material: floorMat });
@@ -376,9 +376,9 @@ export function initScene(canvasEl) {
   }
 
   // Contact materials
-  world.addContactMaterial(new CANNON.ContactMaterial(floorMat, diceMat, { friction: 0.5, restitution: 0.5 }));
-  world.addContactMaterial(new CANNON.ContactMaterial(diceMat, diceMat, { friction: 0.4, restitution: 0.4 }));
-  world.addContactMaterial(new CANNON.ContactMaterial(wallMat, diceMat, { friction: 0.2, restitution: 0.7 }));
+  world.addContactMaterial(new CANNON.ContactMaterial(floorMat, diceMat, { friction: 0.5, restitution: 0.35 }));
+  world.addContactMaterial(new CANNON.ContactMaterial(diceMat, diceMat, { friction: 0.4, restitution: 0.3 }));
+  world.addContactMaterial(new CANNON.ContactMaterial(wallMat, diceMat, { friction: 0.3, restitution: 0.3 }));
 
   renderer.render(scene, camera);
 }

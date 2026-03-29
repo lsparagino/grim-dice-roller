@@ -11,8 +11,76 @@ import * as THREE from 'three';
 import { diceMax } from './dice-icons.js';
 import { D4_FACE_CORNERS } from './dice-geometry.js';
 
-// ── Track active crit effects for animation ──────────────
-const activeCritDice = []; // Array of { mesh, light, uniforms[] }
+// ── Track active crit effects for animation ──────────────────
+const activeCritDice = []; // Array of { mesh, light, uniforms[], rays, raysMat }
+
+// ── Procedural god ray starburst texture ──────────────────
+let godRayTexture = null;
+
+function getGodRayTexture() {
+  if (godRayTexture) return godRayTexture;
+
+  const size = 512;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  const cx = size / 2, cy = size / 2;
+
+  ctx.clearRect(0, 0, size, size);
+
+  // Draw many radial light rays with varying width/length/brightness
+  const numRays = 80;
+  for (let i = 0; i < numRays; i++) {
+    const angle = (Math.PI * 2 / numRays) * i + (Math.random() - 0.5) * 0.08;
+    const length = size * 0.42 * (0.4 + Math.random() * 0.6);
+    const baseWidth = 1 + Math.random() * 4;
+    const alpha = 0.12 + Math.random() * 0.22;
+
+    // Gradient from bright center to transparent tip
+    const ex = cx + Math.cos(angle) * length;
+    const ey = cy + Math.sin(angle) * length;
+    const grad = ctx.createLinearGradient(cx, cy, ex, ey);
+    grad.addColorStop(0, `rgba(255, 230, 170, ${alpha})`);
+    grad.addColorStop(0.25, `rgba(255, 190, 90, ${alpha * 0.7})`);
+    grad.addColorStop(0.6, `rgba(255, 140, 40, ${alpha * 0.3})`);
+    grad.addColorStop(1, 'rgba(255, 100, 20, 0)');
+
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(angle);
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.moveTo(-baseWidth, 0);
+    ctx.lineTo(baseWidth, 0);
+    ctx.lineTo(baseWidth * 0.15, length);
+    ctx.lineTo(-baseWidth * 0.15, length);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // Central hot glow
+  const glow = ctx.createRadialGradient(cx, cy, 0, cx, cy, size * 0.18);
+  glow.addColorStop(0, 'rgba(255, 245, 220, 0.9)');
+  glow.addColorStop(0.3, 'rgba(255, 210, 140, 0.5)');
+  glow.addColorStop(0.7, 'rgba(255, 160, 60, 0.15)');
+  glow.addColorStop(1, 'rgba(255, 120, 30, 0)');
+  ctx.fillStyle = glow;
+  ctx.fillRect(0, 0, size, size);
+
+  // Second wider soft glow layer
+  const glow2 = ctx.createRadialGradient(cx, cy, 0, cx, cy, size * 0.35);
+  glow2.addColorStop(0, 'rgba(255, 220, 160, 0.3)');
+  glow2.addColorStop(0.5, 'rgba(255, 170, 80, 0.1)');
+  glow2.addColorStop(1, 'rgba(255, 120, 30, 0)');
+  ctx.fillStyle = glow2;
+  ctx.fillRect(0, 0, size, size);
+
+  godRayTexture = new THREE.CanvasTexture(canvas);
+  godRayTexture.needsUpdate = true;
+  return godRayTexture;
+}
 
 /**
  * Check each die result and apply the crit glow effect if it rolled max.
@@ -38,7 +106,21 @@ export function applyCritEffects(diceObjects, results, scene) {
     light.position.set(0, 0.5, 0);
     mesh.add(light);
 
-    activeCritDice.push({ mesh, light, uniforms });
+    // Add god ray sprite (billboard with radial starburst)
+    const raysMat = new THREE.SpriteMaterial({
+      map: getGodRayTexture(),
+      blending: THREE.AdditiveBlending,
+      transparent: true,
+      opacity: 0.6,
+      depthWrite: false,
+      color: 0xffcc77,
+    });
+    const rays = new THREE.Sprite(raysMat);
+    rays.scale.set(2.2, 2.2, 1);
+    rays.position.set(0, 0.3, 0); // Offset up to avoid floor clipping
+    mesh.add(rays);
+
+    activeCritDice.push({ mesh, light, uniforms, rays, raysMat });
   }
 }
 
@@ -57,6 +139,13 @@ export function updateCritEffects(dt) {
     const t = crit.uniforms[0]?.uTime.value || 0;
     const pulse = 0.5 + 0.5 * Math.sin(t * 2.5);
     crit.light.intensity = 40 + pulse * 40;
+
+    // Animate god ray sprite: gentle rotation + opacity pulse
+    crit.rays.material.rotation += dt * 0.15;
+    crit.raysMat.opacity = 0.35 + pulse * 0.3;
+    // Subtle scale breathing
+    const scalePulse = 2.0 + pulse * 0.4;
+    crit.rays.scale.set(scalePulse, scalePulse, 1);
   }
 }
 
@@ -65,10 +154,10 @@ export function updateCritEffects(dt) {
  */
 export function clearCritEffects() {
   for (const crit of activeCritDice) {
-    if (crit.light.parent) {
-      crit.light.parent.remove(crit.light);
-    }
+    if (crit.light.parent) crit.light.parent.remove(crit.light);
     crit.light.dispose();
+    if (crit.rays.parent) crit.rays.parent.remove(crit.rays);
+    crit.raysMat.dispose();
   }
   activeCritDice.length = 0;
 }
@@ -247,8 +336,8 @@ vec2 voronoi3(vec3 p) {
 }
 
 // Domain-warped organic cracks in 3D
-// Returns: x = hard crack (sharp line), y = soft glow (wider falloff)
-vec2 organicCracks(vec3 p, float scale) {
+// Returns: x = hard crack, y = soft glow, z = wide atmospheric haze
+vec3 organicCracks(vec3 p, float scale) {
   // Domain warp: distort position with FBM for irregular, organic shapes
   vec3 warp = vec3(
     fbm3(p * 2.0 + vec3(0.0, 3.7, 1.2)),
@@ -260,12 +349,27 @@ vec2 organicCracks(vec3 p, float scale) {
   vec2 v = voronoi3(warped);
   float edge = v.y - v.x;
 
-  // Sharp crack line
-  float crack = 1.0 - smoothstep(0.0, 0.12, edge);
-  // Soft glow halo around cracks (wider falloff)
-  float glow = 1.0 - smoothstep(0.0, 0.35, edge);
+  // Sharp crack line (tight for crisp edges)
+  float crack = 1.0 - smoothstep(0.0, 0.06, edge);
+  // Soft glow halo around cracks
+  float glow = 1.0 - smoothstep(0.0, 0.25, edge);
+  // Wide atmospheric haze (visible "dusty light" scatter)
+  float haze = 1.0 - smoothstep(0.0, 0.6, edge);
 
-  return vec2(crack, glow);
+  return vec3(crack, glow, haze);
+}
+
+// Crack depth as height field (1 = surface, 0 = deep crack)
+float crackHeight(vec3 p, float scale) {
+  vec3 warp = vec3(
+    fbm3(p * 2.0 + vec3(0.0, 3.7, 1.2)),
+    fbm3(p * 2.0 + vec3(5.2, 1.3, 0.0)),
+    fbm3(p * 2.0 + vec3(2.8, 0.0, 4.1))
+  );
+  vec3 warped = p * scale + warp * 1.2;
+  vec2 v = voronoi3(warped);
+  float edge = v.y - v.x;
+  return smoothstep(0.0, 0.15, edge);
 }
 `;
 
@@ -305,35 +409,55 @@ void main() {
   vec3 rockColor = baseColor.rgb;
 
   // ── Organic cracks in 3D object space (seamless) ─────
-  vec2 crackData = organicCracks(vObjPosition, 3.0);
-  float crack = crackData.x;     // sharp line
-  float crackGlow = crackData.y; // wider soft falloff
+  vec3 crackData = organicCracks(vObjPosition, 3.0);
+  float crack = crackData.x;      // sharp line
+  float crackGlow = crackData.y;   // soft falloff
+  float crackHaze = crackData.z;   // wide atmospheric haze
+
+  // ── Bump mapping from crack depth ────────────────────
+  // Compute perturbed normal using screen-space derivatives
+  float height = crackHeight(vObjPosition, 3.0);
+  float dhdx = dFdx(height);
+  float dhdy = dFdy(height);
+  vec3 N = normalize(vNormal);
+  vec3 dpdx = dFdx(vObjPosition);
+  vec3 dpdy = dFdy(vObjPosition);
+  // Perturbed normal (bump strength controls depth appearance)
+  float bumpStrength = 3.0;
+  vec3 bumpN = normalize(N
+    - bumpStrength * (dhdx * cross(N, dpdy) + dhdy * cross(dpdx, N))
+    / max(dot(dpdx, dpdx), 0.001));
 
   // ── Animated turbulence energy (3D, flows through cracks) ──
-  // Two FBM layers at different speeds create organic flowing energy
   vec3 turbPos = vObjPosition * 3.0;
   float turb1 = fbm3(turbPos + vec3(uTime * 0.15, uTime * 0.08, -uTime * 0.12));
   float turb2 = fbm3(turbPos * 1.3 + vec3(-uTime * 0.1, uTime * 0.2, uTime * 0.05));
   float turbulence = turb1 * 0.55 + turb2 * 0.45;
-  // Strong contrast: bright blobs flowing through dark regions
   turbulence = smoothstep(0.3, 0.65, turbulence);
 
   // ── Crack rendering ──────────────────────────────────
   // Darken rock at crack edges for depth
-  rockColor = mix(rockColor, rockColor * 0.3, crack * 0.6);
+  rockColor = mix(rockColor, rockColor * 0.2, crack * 0.7);
 
-  // Glowing energy visible in the cracks, modulated by turbulence
-  vec3 energyColorHot = vec3(1.0, 0.95, 0.85);  // white-hot
-  vec3 energyColorWarm = vec3(0.85, 0.55, 0.2);  // warm amber
+  // Energy color: warm amber to white-hot
+  vec3 energyColorHot = vec3(1.0, 0.95, 0.85);
+  vec3 energyColorWarm = vec3(0.85, 0.55, 0.2);
   vec3 energyColor = mix(energyColorWarm, energyColorHot, turbulence);
 
-  // Core glow: bright energy in crack lines
+  // Core glow: bright energy in sharp crack lines
   float coreEnergy = crack * turbulence;
-  rockColor += energyColor * coreEnergy * 2.5;
+  rockColor += energyColor * coreEnergy * 3.0;
 
-  // Soft ambient glow around cracks (halo)
-  float haloEnergy = crackGlow * turbulence * 0.4;
+  // Soft glow halo around cracks
+  float haloEnergy = crackGlow * turbulence * 0.5;
   rockColor += energyColor * haloEnergy;
+
+  // ── Atmospheric haze (dusty light scatter) ────────────
+  // Very wide, subtle warm glow visible on the rock surface
+  // Simulates light scattering through dust/haze near cracks
+  vec3 hazeColor = mix(vec3(0.6, 0.35, 0.1), vec3(0.8, 0.6, 0.3), turbulence);
+  float hazeEnergy = crackHaze * (0.3 + turbulence * 0.4);
+  rockColor += hazeColor * hazeEnergy * 0.35;
 
   // ── Number glow with same turbulence ─────────────────
   float numTurb = fbm3(vObjPosition * 2.5 + vec3(uTime * 0.12, uTime * 0.08, -uTime * 0.1));
@@ -344,15 +468,14 @@ void main() {
   rockColor = mix(rockColor, glowColor, glowStrength);
   rockColor += glowColor * pow(numberMask, 0.6) * 0.35 * numEnergy;
 
-  // ── Lighting ─────────────────────────────────────────
-  vec3 N = normalize(vNormal);
+  // ── Lighting with bumped normal ───────────────────────
   vec3 V = normalize(vViewPosition);
   vec3 L = normalize(vec3(0.5, 1.0, 0.3));
-  float diffuse = max(dot(N, L), 0.0) * 0.4 + 0.6;
+  float diffuse = max(dot(bumpN, L), 0.0) * 0.4 + 0.6;
   vec3 H = normalize(V + L);
-  float specular = pow(max(dot(N, H), 0.0), 60.0) * 0.3;
+  float specular = pow(max(dot(bumpN, H), 0.0), 60.0) * 0.4;
 
-  float emissiveMask = max(glowStrength, coreEnergy * 0.6);
+  float emissiveMask = max(glowStrength, max(coreEnergy * 0.6, hazeEnergy * 0.3));
   float lightMix = 1.0 - clamp(emissiveMask, 0.0, 1.0);
   vec3 finalColor = rockColor * (diffuse * lightMix + (1.0 - lightMix)) + specular * lightMix;
 
@@ -378,11 +501,24 @@ void main() {
   vec3 rockColor = baseColor.rgb;
 
   // Same organic 3D cracks as faces
-  vec2 crackData = organicCracks(vObjPosition, 3.0);
+  vec3 crackData = organicCracks(vObjPosition, 3.0);
   float crack = crackData.x;
   float crackGlow = crackData.y;
+  float crackHaze = crackData.z;
 
-  // Same turbulence energy
+  // Bump mapping
+  float height = crackHeight(vObjPosition, 3.0);
+  float dhdx = dFdx(height);
+  float dhdy = dFdy(height);
+  vec3 N = normalize(vNormal);
+  vec3 dpdx = dFdx(vObjPosition);
+  vec3 dpdy = dFdy(vObjPosition);
+  float bumpStrength = 3.0;
+  vec3 bumpN = normalize(N
+    - bumpStrength * (dhdx * cross(N, dpdy) + dhdy * cross(dpdx, N))
+    / max(dot(dpdx, dpdx), 0.001));
+
+  // Turbulence energy
   vec3 turbPos = vObjPosition * 3.0;
   float turb1 = fbm3(turbPos + vec3(uTime * 0.15, uTime * 0.08, -uTime * 0.12));
   float turb2 = fbm3(turbPos * 1.3 + vec3(-uTime * 0.1, uTime * 0.2, uTime * 0.05));
@@ -390,22 +526,26 @@ void main() {
   turbulence = smoothstep(0.3, 0.65, turbulence);
 
   // Crack rendering
-  rockColor = mix(rockColor, rockColor * 0.3, crack * 0.6);
+  rockColor = mix(rockColor, rockColor * 0.2, crack * 0.7);
   vec3 energyColor = mix(vec3(0.85, 0.55, 0.2), vec3(1.0, 0.95, 0.85), turbulence);
   float coreEnergy = crack * turbulence;
-  rockColor += energyColor * coreEnergy * 2.0;
-  float haloEnergy = crackGlow * turbulence * 0.3;
+  rockColor += energyColor * coreEnergy * 2.5;
+  float haloEnergy = crackGlow * turbulence * 0.4;
   rockColor += energyColor * haloEnergy;
 
-  // Lighting
-  vec3 N = normalize(vNormal);
+  // Atmospheric haze
+  vec3 hazeColor = mix(vec3(0.6, 0.35, 0.1), vec3(0.8, 0.6, 0.3), turbulence);
+  float hazeEnergy = crackHaze * (0.3 + turbulence * 0.4);
+  rockColor += hazeColor * hazeEnergy * 0.3;
+
+  // Lighting with bumped normal
   vec3 V = normalize(vViewPosition);
   vec3 L = normalize(vec3(0.5, 1.0, 0.3));
-  float diffuse = max(dot(N, L), 0.0) * 0.4 + 0.6;
+  float diffuse = max(dot(bumpN, L), 0.0) * 0.4 + 0.6;
   vec3 H = normalize(V + L);
-  float specular = pow(max(dot(N, H), 0.0), 60.0) * 0.3;
+  float specular = pow(max(dot(bumpN, H), 0.0), 60.0) * 0.4;
 
-  float emissiveMask = coreEnergy * 0.5;
+  float emissiveMask = max(coreEnergy * 0.6, hazeEnergy * 0.3);
   float lightMix = 1.0 - clamp(emissiveMask, 0.0, 1.0);
   vec3 finalColor = rockColor * (diffuse * lightMix + (1.0 - lightMix)) + specular * lightMix;
 

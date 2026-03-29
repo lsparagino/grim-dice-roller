@@ -5,7 +5,7 @@
  */
 import * as THREE from 'three';
 import * as CANNON from 'cannon-es';
-import { DEBUG, DIE_SIZE, DIE_SCALE, THROW_HEIGHT, SETTLE_THRESHOLD, SETTLE_FRAMES, MAX_ROLL_TIME } from './dice-constants.js';
+import { DEBUG, DIE_SIZE, DIE_SCALE, THROW_HEIGHT, SETTLE_THRESHOLD, SETTLE_FRAMES, MAX_ROLL_TIME, FLOOR_Y } from './dice-constants.js';
 import { DICE_GEOM, buildDieGeometry, D4_FACE_CORNERS, D4_VERTEX_LABELS } from './dice-geometry.js';
 import { createEdgeMaterial, createFaceMaterial, createD4FaceMaterial } from './dice-materials.js';
 import { createDieBody } from './dice-physics.js';
@@ -186,6 +186,38 @@ function animate() {
     }
 
     if (allSettled && diceObjects.length > 0) {
+      // Anti-propping check: detect dice that settled while leaning diagonally
+      // A properly flat die has its center near FLOOR_Y + its radius.
+      // If it's significantly higher, it's propped against something.
+      const maxRestHeight = FLOOR_Y + DIE_SIZE * 1.6; // generous threshold
+      let anyPropped = false;
+
+      for (const d of diceObjects) {
+        if (d.body.position.y > maxRestHeight) {
+          anyPropped = true;
+          // Wake it up and nudge it to topple
+          d.body.wakeUp();
+          d.body.velocity.set(
+            (Math.random() - 0.5) * 2,
+            0.5,
+            (Math.random() - 0.5) * 2,
+          );
+          d.body.angularVelocity.set(
+            (Math.random() - 0.5) * 5,
+            (Math.random() - 0.5) * 5,
+            (Math.random() - 0.5) * 5,
+          );
+          d.settledFrames = 0;
+        }
+      }
+
+      if (anyPropped) {
+        // Keep animating — dice need to re-settle
+        allSettled = false;
+      }
+    }
+
+    if (allSettled && diceObjects.length > 0) {
       isAnimating = false;
 
       const results = diceObjects.map(d => ({
@@ -286,9 +318,9 @@ export function rollDice3D(diceList, onComplete) {
 
     // Random spin
     body.angularVelocity.set(
-      (Math.random() - 0.5) * 25,
-      (Math.random() - 0.5) * 25,
-      (Math.random() - 0.5) * 25,
+      (Math.random() - 0.5) * 35,
+      (Math.random() - 0.5) * 35,
+      (Math.random() - 0.5) * 35,
     );
 
     scene.add(mesh);

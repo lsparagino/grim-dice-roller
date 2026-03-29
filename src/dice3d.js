@@ -9,6 +9,7 @@ import { DEBUG, DIE_SIZE, DIE_SCALE, THROW_HEIGHT, SETTLE_THRESHOLD, SETTLE_FRAM
 import { DICE_GEOM, buildDieGeometry, D4_FACE_CORNERS, D4_VERTEX_LABELS } from './dice-geometry.js';
 import { createEdgeMaterial, createFaceMaterial, createD4FaceMaterial } from './dice-materials.js';
 import { createDieBody } from './dice-physics.js';
+import { applyCritEffects, updateCritEffects, clearCritEffects } from './dice-crit-effect.js';
 import {
   initScene as initSceneInternal,
   disposeScene as disposeSceneInternal,
@@ -150,9 +151,10 @@ function animate() {
 
   if (controls) controls.update();
 
-  // Always update the orbiting light and score camera orbit
+  // Always update the orbiting light, score camera orbit, and crit effects
   updateOrbitLight(dt);
   updateScoreOrbit(dt);
+  updateCritEffects(dt);
 
   // Only step physics while dice are still rolling
   if (isAnimating && world) {
@@ -190,6 +192,9 @@ function animate() {
         type: d.type,
         value: getFaceValue(d),
       }));
+
+      // Apply crit glow to any dice that rolled their max value
+      applyCritEffects(diceObjects, results, scene);
 
       if (DEBUG) {
         // In debug mode, just log results — don't trigger score overlay/orbit
@@ -242,7 +247,8 @@ export function rollDice3D(diceList, onComplete) {
   rollStartTime = performance.now();
   onCompleteCallback = onComplete;
 
-  // Clear previous dice
+  // Clear previous dice and crit effects
+  clearCritEffects();
   for (const d of diceObjects) {
     scene.remove(d.mesh);
     world.removeBody(d.body);
@@ -299,6 +305,7 @@ export function rollDice3D(diceList, onComplete) {
 export function clearDice() {
   const scene = getScene();
   const world = getWorld();
+  clearCritEffects();
   for (const d of diceObjects) {
     if (scene) scene.remove(d.mesh);
     if (world) world.removeBody(d.body);

@@ -3,7 +3,7 @@
  */
 
 // Debug mode — enables OrbitControls camera and continuous render loop
-export const DEBUG = true;
+export const DEBUG = false;
 
 // Camera
 export const CAMERA_POS = [0, 7, 9]; // Default camera position [x, y, z]
